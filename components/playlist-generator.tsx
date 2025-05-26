@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Loader2, X, Music, Lock } from "lucide-react"
+import { Progress } from "@/components/ui/progress"
+import { Loader2, X, Lock, Sparkles, Brain } from "lucide-react"
 import { useSpotify } from "@/hooks/use-spotify"
 import { KeywordSuggestions } from "@/components/keyword-suggestions"
 import { SpotifyLoginButton } from "@/components/spotify-login-button"
@@ -20,6 +21,8 @@ export function PlaylistGenerator() {
   const [inputValue, setInputValue] = useState("")
   const [keywords, setKeywords] = useState<string[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState(0)
+  const [generationStep, setGenerationStep] = useState("")
 
   const handleAddKeyword = () => {
     if (inputValue.trim() && !keywords.includes(inputValue.trim())) {
@@ -65,8 +68,18 @@ export function PlaylistGenerator() {
     }
 
     setIsGenerating(true)
+    setGenerationProgress(0)
 
     try {
+      // Simuliere Fortschritt für bessere UX
+      setGenerationStep("Analysiere Keywords...")
+      setGenerationProgress(20)
+
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      setGenerationStep("Google Gemini generiert Songvorschläge...")
+      setGenerationProgress(40)
+
       const response = await fetch("/api/generate-playlist", {
         method: "POST",
         headers: {
@@ -75,11 +88,30 @@ export function PlaylistGenerator() {
         body: JSON.stringify({ keywords }),
       })
 
+      setGenerationProgress(70)
+      setGenerationStep("Suche Songs in Spotify...")
+
       const data = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || "Fehler bei der Playlist-Generierung")
       }
+
+      setGenerationProgress(90)
+      setGenerationStep("Erstelle Playlist...")
+
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      setGenerationProgress(100)
+      setGenerationStep("Fertig!")
+
+      toast({
+        title: "Playlist erstellt!",
+        description: `${data.playlist.trackCount} Songs wurden zu deiner Playlist hinzugefügt.`,
+      })
+
+      // Kurze Pause vor der Weiterleitung
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
       router.push(`/playlist/${data.playlist.id}`)
     } catch (error) {
@@ -91,6 +123,8 @@ export function PlaylistGenerator() {
       })
     } finally {
       setIsGenerating(false)
+      setGenerationProgress(0)
+      setGenerationStep("")
     }
   }
 
@@ -111,9 +145,13 @@ export function PlaylistGenerator() {
     <section id="playlist-generator" className="py-16 px-4 bg-background">
       <div className="container mx-auto max-w-3xl">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold mb-2">Erstelle deine Playlist</h2>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <Brain className="h-8 w-8 text-emerald-600" />
+            <Sparkles className="h-6 w-6 text-yellow-500" />
+          </div>
+          <h2 className="text-3xl font-bold mb-2">Erstelle deine KI-Playlist</h2>
           <p className="text-muted-foreground">
-            Gib Keywords ein, die deine Stimmung oder gewünschten Musikstil beschreiben
+            Powered by Google Gemini - Gib Keywords ein, die deine Stimmung oder gewünschten Musikstil beschreiben
           </p>
         </div>
 
@@ -125,7 +163,7 @@ export function PlaylistGenerator() {
               </div>
               <CardTitle>Spotify-Anmeldung erforderlich</CardTitle>
               <CardDescription>
-                Um personalisierte Playlists zu erstellen, musst du dich mit deinem Spotify-Konto anmelden.
+                Um personalisierte Playlists mit KI zu erstellen, musst du dich mit deinem Spotify-Konto anmelden.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
@@ -136,6 +174,17 @@ export function PlaylistGenerator() {
           </Card>
         ) : (
           <div className="bg-card rounded-xl shadow-lg p-6 border">
+            {isGenerating && (
+              <div className="mb-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="h-5 w-5 text-emerald-600 animate-pulse" />
+                  <span className="font-medium text-emerald-800">{generationStep}</span>
+                </div>
+                <Progress value={generationProgress} className="h-2" />
+                <p className="text-sm text-emerald-600 mt-2">{generationProgress}% abgeschlossen</p>
+              </div>
+            )}
+
             <div className="flex gap-2 mb-4">
               <Input
                 value={inputValue}
@@ -179,15 +228,22 @@ export function PlaylistGenerator() {
                 {isGenerating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Playlist wird erstellt...
+                    KI erstellt Playlist...
                   </>
                 ) : (
                   <>
-                    <Music className="mr-2 h-5 w-5" />
-                    Playlist generieren
+                    <Brain className="mr-2 h-5 w-5" />
+                    Mit KI Playlist generieren
                   </>
                 )}
               </Button>
+            </div>
+
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              <p className="flex items-center justify-center gap-1">
+                <Sparkles className="h-4 w-4" />
+                Powered by Google Gemini AI
+              </p>
             </div>
           </div>
         )}
