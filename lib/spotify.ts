@@ -97,3 +97,98 @@ export async function getUserPlaylists(accessToken: string) {
 
   return response.json()
 }
+
+// Neue Funktionen für Hörgewohnheiten
+
+export async function getTopArtists(
+  accessToken: string,
+  timeRange: "short_term" | "medium_term" | "long_term" = "medium_term",
+  limit = 50,
+) {
+  const response = await fetch(`https://api.spotify.com/v1/me/top/artists?time_range=${timeRange}&limit=${limit}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error("Top-Künstler konnten nicht abgerufen werden")
+  }
+
+  return response.json()
+}
+
+export async function getTopTracks(
+  accessToken: string,
+  timeRange: "short_term" | "medium_term" | "long_term" = "medium_term",
+  limit = 50,
+) {
+  const response = await fetch(`https://api.spotify.com/v1/me/top/tracks?time_range=${timeRange}&limit=${limit}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error("Top-Tracks konnten nicht abgerufen werden")
+  }
+
+  return response.json()
+}
+
+export async function getRecentlyPlayed(accessToken: string, limit = 50) {
+  const response = await fetch(`https://api.spotify.com/v1/me/player/recently-played?limit=${limit}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error("Kürzlich gespielte Tracks konnten nicht abgerufen werden")
+  }
+
+  return response.json()
+}
+
+export async function getAudioFeatures(accessToken: string, trackIds: string[]) {
+  const ids = trackIds.join(",")
+  const response = await fetch(`https://api.spotify.com/v1/audio-features?ids=${ids}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error("Audio-Features konnten nicht abgerufen werden")
+  }
+
+  return response.json()
+}
+
+export async function getSavedTracks(accessToken: string, limit = 50) {
+  const response = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error("Gespeicherte Tracks konnten nicht abgerufen werden")
+  }
+
+  return response.json()
+}
+
+export async function getFollowedArtists(accessToken: string, limit = 50) {
+  const response = await fetch(`https://api.spotify.com/v1/me/following?type=artist&limit=${limit}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error("Gefolgte Künstler konnten nicht abgerufen werden")
+  }
+
+  return response.json()
+}

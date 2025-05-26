@@ -1,164 +1,74 @@
 "use client"
 
-import { useSession, signIn, signOut } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
+import { signIn, signOut } from "next-auth/react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { useEffect, useState } from "react"
 
 export default function DebugPage() {
   const { data: session, status } = useSession()
-  const [apiTest, setApiTest] = useState<any>(null)
-
-  useEffect(() => {
-    // Teste die API-Verbindung
-    fetch("/api/test")
-      .then((res) => res.json())
-      .then((data) => setApiTest(data))
-      .catch((error) => setApiTest({ error: error.message }))
-  }, [])
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
-      <h1 className="text-3xl font-bold mb-6">Debug-Informationen</h1>
+    <div className="container mx-auto py-8 px-4">
+      <h1 className="text-3xl font-bold mb-6">Authentifizierungs-Debug</h1>
 
-      <div className="grid gap-6">
-        {/* API Test */}
-        <Card>
-          <CardHeader>
-            <CardTitle>API-Test</CardTitle>
-            <CardDescription>Überprüfung der grundlegenden API-Funktionalität</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {apiTest ? (
-              <pre className="bg-muted p-4 rounded-md overflow-auto text-sm">{JSON.stringify(apiTest, null, 2)}</pre>
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Session Status</CardTitle>
+          <CardDescription>Aktueller Status der Authentifizierung</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <p>
+              <strong>Status:</strong> {status}
+            </p>
+            {session ? (
+              <>
+                <p>
+                  <strong>Benutzer:</strong> {session.user?.name || "Nicht verfügbar"}
+                </p>
+                <p>
+                  <strong>E-Mail:</strong> {session.user?.email || "Nicht verfügbar"}
+                </p>
+                <p>
+                  <strong>Access Token:</strong>{" "}
+                  {session.accessToken ? `${session.accessToken.substring(0, 20)}...` : "Nicht verfügbar"}
+                </p>
+                <p>
+                  <strong>Fehler:</strong> {session.error || "Keiner"}
+                </p>
+              </>
             ) : (
-              <p>Lade API-Test...</p>
+              <p>Keine aktive Session</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        {/* Session Status */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Session Status</CardTitle>
-            <CardDescription>Aktueller Authentifizierungsstatus</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <strong>Status:</strong> {status}
-              </div>
+      <div className="flex gap-4">
+        <Button onClick={() => signIn("spotify")}>Mit Spotify anmelden (Standard)</Button>
+        <Button
+          onClick={() =>
+            signIn("spotify", {
+              callbackUrl: "/dashboard",
+            })
+          }
+        >
+          Mit Spotify anmelden (mit Callback)
+        </Button>
+        <Button variant="destructive" onClick={() => signOut()}>
+          Abmelden
+        </Button>
+      </div>
 
-              {session ? (
-                <div className="space-y-2">
-                  <div>
-                    <strong>Benutzer:</strong> {session.user?.name || "Nicht verfügbar"}
-                  </div>
-                  <div>
-                    <strong>E-Mail:</strong> {session.user?.email || "Nicht verfügbar"}
-                  </div>
-                  <div>
-                    <strong>Access Token:</strong> {session.accessToken ? "Vorhanden" : "Nicht verfügbar"}
-                  </div>
-                  <details className="mt-4">
-                    <summary className="cursor-pointer font-medium">Session Details</summary>
-                    <pre className="bg-muted p-4 rounded-md overflow-auto text-sm mt-2">
-                      {JSON.stringify(session, null, 2)}
-                    </pre>
-                  </details>
-                </div>
-              ) : (
-                <p>Keine aktive Session</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Login Controls */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Authentifizierung</CardTitle>
-            <CardDescription>Login- und Logout-Funktionen</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4">
-              <Button onClick={() => signIn("spotify")} disabled={status === "loading"}>
-                Mit Spotify anmelden
-              </Button>
-
-              <Button
-                onClick={() => signIn("spotify", { callbackUrl: "/dashboard" })}
-                disabled={status === "loading"}
-                variant="outline"
-              >
-                Mit Spotify anmelden (Dashboard)
-              </Button>
-
-              <Button onClick={() => signOut()} disabled={!session} variant="destructive">
-                Abmelden
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Environment Check */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Umgebung</CardTitle>
-            <CardDescription>Überprüfung der Umgebungsvariablen</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div>
-                <strong>NODE_ENV:</strong> {process.env.NODE_ENV}
-              </div>
-              <div>
-                <strong>NEXTAUTH_URL:</strong> {process.env.NEXTAUTH_URL || "Nicht gesetzt"}
-              </div>
-              <div>
-                <strong>Aktuelle URL:</strong> {typeof window !== "undefined" ? window.location.origin : "Server"}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* NextAuth Test */}
-        <Card>
-          <CardHeader>
-            <CardTitle>NextAuth API Test</CardTitle>
-            <CardDescription>Direkte Überprüfung der NextAuth-Endpunkte</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Button
-                onClick={() => {
-                  fetch("/api/auth/session")
-                    .then((res) => res.json())
-                    .then((data) => console.log("Session API:", data))
-                    .catch((error) => console.error("Session API Error:", error))
-                }}
-                variant="outline"
-                size="sm"
-              >
-                Test Session API
-              </Button>
-
-              <Button
-                onClick={() => {
-                  fetch("/api/auth/providers")
-                    .then((res) => res.json())
-                    .then((data) => console.log("Providers API:", data))
-                    .catch((error) => console.error("Providers API Error:", error))
-                }}
-                variant="outline"
-                size="sm"
-              >
-                Test Providers API
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2">Ergebnisse werden in der Browser-Konsole angezeigt</p>
-          </CardContent>
-        </Card>
+      <div className="mt-8">
+        <h2 className="text-xl font-bold mb-4">Umgebungsvariablen (nur für Debug)</h2>
+        <pre className="bg-muted p-4 rounded-md overflow-auto">
+          {`NEXTAUTH_URL: ${process.env.NEXT_PUBLIC_NEXTAUTH_URL || "Nicht gesetzt"}
+SPOTIFY_CLIENT_ID: ${process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID ? "Gesetzt" : "Nicht gesetzt"}
+SPOTIFY_CLIENT_SECRET: ${"[Geschützt]"}
+NEXTAUTH_SECRET: ${"[Geschützt]"}`}
+        </pre>
       </div>
     </div>
   )

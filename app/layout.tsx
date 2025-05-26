@@ -12,6 +12,17 @@ export const metadata = {
     generator: 'v0.dev'
 }
 
+// Setze die öffentliche Basis-URL für NextAuth
+if (typeof window !== "undefined") {
+  window.process = {
+    ...window.process,
+    env: {
+      ...window.process?.env,
+      NEXT_PUBLIC_NEXTAUTH_URL: window.location.origin,
+    },
+  }
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{

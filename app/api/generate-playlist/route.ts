@@ -17,23 +17,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Keywords sind erforderlich" }, { status: 400 })
     }
 
-    console.log("Generiere Playlist für Keywords:", keywords)
+    console.log("Generiere personalisierte Playlist für Keywords:", keywords)
 
     // Analysiere Keywords für bessere Playlist-Generierung
     const analysis = analyzeKeywords(keywords)
     console.log("Keyword-Analyse:", analysis)
 
-    // KI-basierte Playlist-Generierung mit Google Gemini
-    const tracks = await generatePlaylist(keywords, session.accessToken)
+    // KI-basierte Playlist-Generierung mit Persönlichkeitsanalyse
+    const result = await generatePlaylist(keywords, session.accessToken)
+    const { tracks, personality } = result
 
     if (!tracks || tracks.length === 0) {
       return NextResponse.json({ error: "Keine passenden Songs gefunden" }, { status: 404 })
     }
 
+    // Erstelle eine aussagekräftige Playlist-Beschreibung
+    let description = `🎵 Generiert mit NeuroTunes & Google Gemini basierend auf: ${keywords.join(", ")}`
+
+    if (personality) {
+      description += ` | Persönlichkeit: ${personality.dominantMood} (${personality.energyLevel}% Energie)`
+      if (personality.topGenres.length > 0) {
+        description += ` | Genres: ${personality.topGenres.slice(0, 3).join(", ")}`
+      }
+    }
+
     // Playlist in Spotify erstellen
     const playlistName = `NeuroTunes: ${keywords.join(", ")}`
-    const description = `🎵 Generiert mit NeuroTunes & Google Gemini basierend auf: ${keywords.join(", ")} | Stimmungen: ${analysis.moods.join(", ") || "Gemischt"} | Genres: ${analysis.genres.join(", ") || "Gemischt"}`
-
     const playlist = await createPlaylist(session.accessToken, playlistName, description)
 
     // Tracks zur Playlist hinzufügen
@@ -43,7 +52,7 @@ export async function POST(req: NextRequest) {
       await addTracksToPlaylist(session.accessToken, playlist.id, trackUris)
     }
 
-    console.log(`Playlist "${playlistName}" erfolgreich erstellt mit ${trackUris.length} Tracks`)
+    console.log(`Personalisierte Playlist "${playlistName}" erfolgreich erstellt mit ${trackUris.length} Tracks`)
 
     return NextResponse.json({
       success: true,
@@ -52,11 +61,13 @@ export async function POST(req: NextRequest) {
         tracks,
         keywords,
         analysis,
+        personality,
         trackCount: trackUris.length,
+        personalized: !!personality,
       },
     })
   } catch (error) {
-    console.error("Fehler bei der Playlist-Generierung:", error)
+    console.error("Fehler bei der personalisierten Playlist-Generierung:", error)
 
     // Detailliertere Fehlermeldungen
     let errorMessage = "Fehler bei der Playlist-Generierung"
@@ -68,6 +79,9 @@ export async function POST(req: NextRequest) {
         errorMessage = "API-Limit erreicht. Bitte versuche es später erneut."
       } else if (error.message.includes("network")) {
         errorMessage = "Netzwerkfehler. Bitte überprüfe deine Internetverbindung."
+      } else if (error.message.includes("Top-Künstler") || error.message.includes("Top-Tracks")) {
+        errorMessage =
+          "Nicht genügend Spotify-Daten für Personalisierung verfügbar. Playlist wird mit Standard-Algorithmus erstellt."
       } else {
         errorMessage = error.message
       }
