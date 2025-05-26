@@ -6,6 +6,8 @@ import {
   getSavedTracks,
   getFollowedArtists,
 } from "./spotify"
+import { generateText } from "ai"
+import { google } from "@ai-sdk/google"
 
 export interface MusicPersonality {
   genres: GenrePreference[]
@@ -15,6 +17,7 @@ export interface MusicPersonality {
   temporalPreferences: TemporalPreference
   moodProfile: MoodProfile
   discoveryProfile: DiscoveryProfile
+  personalityInsights: PersonalityInsights
 }
 
 export interface GenrePreference {
@@ -67,8 +70,19 @@ export interface DiscoveryProfile {
   newVsOld: number
 }
 
+export interface PersonalityInsights {
+  musicPersonalityType: string
+  listeningBehavior: string
+  moodDescription: string
+  discoveryStyle: string
+  socialAspect: string
+  recommendations: string[]
+}
+
 export async function analyzeMusicPersonality(accessToken: string): Promise<MusicPersonality> {
   try {
+    console.log("Sammle Spotify-Daten für Persönlichkeitsanalyse...")
+
     // Sammle alle relevanten Daten parallel
     const [
       topArtistsShort,
@@ -92,6 +106,8 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
       getFollowedArtists(accessToken, 50),
     ])
 
+    console.log("Analysiere Audio-Features...")
+
     // Sammle Track-IDs für Audio-Feature-Analyse
     const allTrackIds = [
       ...topTracksShort.items.map((t: any) => t.id),
@@ -104,6 +120,8 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
 
     const audioFeatures = await getAudioFeatures(accessToken, allTrackIds)
 
+    console.log("Führe Basis-Analysen durch...")
+
     // Analysiere verschiedene Aspekte
     const genres = analyzeGenrePreferences([topArtistsShort, topArtistsMedium, topArtistsLong])
     const audioProfile = analyzeAudioFeatures(audioFeatures.audio_features)
@@ -113,6 +131,26 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
     const moodProfile = analyzeMoodProfile(audioFeatures.audio_features, genres)
     const discoveryProfile = analyzeDiscoveryProfile(topTracksShort, topTracksMedium, topTracksLong, followedArtists)
 
+    console.log("Führe KI-basierte Persönlichkeitsanalyse durch...")
+
+    // KI-basierte Persönlichkeitsanalyse
+    const personalityInsights = await generatePersonalityInsights({
+      genres,
+      audioProfile,
+      listeningPatterns,
+      artistDiversity,
+      temporalPrefs,
+      moodProfile,
+      discoveryProfile,
+      rawData: {
+        topArtistsShort: topArtistsShort.items.slice(0, 10),
+        topTracksShort: topTracksShort.items.slice(0, 10),
+        recentlyPlayedCount: recentlyPlayed.items.length,
+        savedTracksCount: savedTracks.items.length,
+        followedArtistsCount: followedArtists.artists?.items.length || 0,
+      },
+    })
+
     return {
       genres,
       audioFeatures: audioProfile,
@@ -121,10 +159,156 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
       temporalPreferences: temporalPrefs,
       moodProfile,
       discoveryProfile,
+      personalityInsights,
     }
   } catch (error) {
     console.error("Fehler bei der Musik-Persönlichkeitsanalyse:", error)
     throw error
+  }
+}
+
+async function generatePersonalityInsights(analysisData: any): Promise<PersonalityInsights> {
+  try {
+    const prompt = `
+Du bist ein Experte für Musikpsychologie und Persönlichkeitsanalyse. Analysiere die folgenden Spotify-Hördaten und erstelle ein detailliertes Musikpersönlichkeitsprofil.
+
+**ANALYSEDATEN:**
+
+**Top-Genres:** ${analysisData.genres
+      .slice(0, 10)
+      .map((g: any) => `${g.genre} (${g.weight.toFixed(1)})`)
+      .join(", ")}
+
+**Audio-Profil:**
+- Energie: ${(analysisData.audioProfile.energy * 100).toFixed(0)}% (0-100%)
+- Positivität/Valenz: ${(analysisData.audioProfile.valence * 100).toFixed(0)}% (0-100%)
+- Tanzbarkeit: ${(analysisData.audioProfile.danceability * 100).toFixed(0)}% (0-100%)
+- Akustik: ${(analysisData.audioProfile.acousticness * 100).toFixed(0)}% (0-100%)
+- Instrumentalität: ${(analysisData.audioProfile.instrumentalness * 100).toFixed(0)}% (0-100%)
+- Durchschnittstempo: ${analysisData.audioProfile.tempo.toFixed(0)} BPM
+- Lautstärke: ${analysisData.audioProfile.loudness.toFixed(1)} dB
+- Sprachanteil: ${(analysisData.audioProfile.speechiness * 100).toFixed(0)}% (0-100%)
+
+**Hörgewohnheiten:**
+- Wiederholungsrate: ${(analysisData.listeningPatterns.repeatListening * 100).toFixed(0)}%
+- Diversitätsscore: ${(analysisData.listeningPatterns.diversityScore * 100).toFixed(0)}%
+
+**Künstler-Diversität:**
+- Mainstream-Faktor: ${(analysisData.artistDiversity.mainstreamFactor * 100).toFixed(0)}%
+- Nischen-Faktor: ${(analysisData.artistDiversity.nicheFactor * 100).toFixed(0)}%
+- Internationale Vielfalt: ${(analysisData.artistDiversity.internationalFactor * 100).toFixed(0)}%
+
+**Stimmungsprofil:**
+- Dominante Stimmung: ${analysisData.moodProfile.dominantMood}
+- Stimmungsvariabilität: ${(analysisData.moodProfile.moodVariability * 100).toFixed(0)}%
+
+**Entdeckungsprofil:**
+- Offenheit für Neues: ${(analysisData.discoveryProfile.openness * 100).toFixed(0)}%
+- Neue vs. Alte Musik: ${(analysisData.discoveryProfile.newVsOld * 100).toFixed(0)}% neue Musik
+
+**Rohdaten:**
+- Top-Künstler (aktuell): ${analysisData.rawData.topArtistsShort
+      .map((a: any) => a.name)
+      .slice(0, 5)
+      .join(", ")}
+- Top-Songs (aktuell): ${analysisData.rawData.topTracksShort
+      .map((t: any) => `${t.name} - ${t.artists[0].name}`)
+      .slice(0, 3)
+      .join(", ")}
+- Kürzlich gespielt: ${analysisData.rawData.recentlyPlayedCount} Songs
+- Gespeicherte Songs: ${analysisData.rawData.savedTracksCount}
+- Gefolgte Künstler: ${analysisData.rawData.followedArtistsCount}
+
+**AUFGABE:**
+Erstelle basierend auf diesen Daten eine umfassende Musikpersönlichkeitsanalyse. Analysiere die Muster und erstelle Insights über:
+
+1. **Musikpersönlichkeitstyp** (z.B. "Energetischer Entdecker", "Melancholischer Träumer", "Vielseitiger Mainstream-Hörer")
+2. **Hörverhalten** (Wie und wann hört die Person Musik?)
+3. **Stimmungsbeschreibung** (Welche emotionalen Bedürfnisse erfüllt die Musik?)
+4. **Entdeckungsstil** (Wie entdeckt die Person neue Musik?)
+5. **Sozialer Aspekt** (Mainstream vs. Underground, Teilen vs. privat)
+6. **Empfehlungen** (3-5 konkrete Tipps für bessere Musikentdeckung)
+
+Sei präzise, einfühlsam und erkenntnisreich. Verwende die Daten, um echte Insights zu generieren, nicht nur die Zahlen zu wiederholen.
+
+Formatiere die Antwort als JSON:
+{
+  "musicPersonalityType": "Kurzer prägnanter Typ (max 3 Wörter)",
+  "listeningBehavior": "Beschreibung des Hörverhaltens (2-3 Sätze)",
+  "moodDescription": "Beschreibung der emotionalen Musiknutzung (2-3 Sätze)",
+  "discoveryStyle": "Beschreibung des Entdeckungsstils (2-3 Sätze)",
+  "socialAspect": "Beschreibung des sozialen Musikverhaltens (2-3 Sätze)",
+  "recommendations": ["Empfehlung 1", "Empfehlung 2", "Empfehlung 3", "Empfehlung 4", "Empfehlung 5"]
+}
+
+Gib NUR das JSON zurück, ohne zusätzlichen Text.
+`
+
+    const { text } = await generateText({
+      model: google("gemini-1.5-flash"),
+      prompt,
+      temperature: 0.7,
+      maxTokens: 800,
+    })
+
+    console.log("KI-Persönlichkeitsanalyse erhalten")
+
+    // Parse die JSON-Antwort
+    try {
+      const cleanedText = text.replace(/```json\n?|\n?```/g, "").trim()
+      const insights = JSON.parse(cleanedText)
+
+      // Validiere die Struktur
+      if (!insights.musicPersonalityType || !insights.listeningBehavior) {
+        throw new Error("Unvollständige Persönlichkeitsanalyse")
+      }
+
+      return insights
+    } catch (parseError) {
+      console.error("Fehler beim Parsen der Persönlichkeitsanalyse:", parseError)
+      console.log("Rohe KI-Antwort:", text)
+
+      // Fallback-Persönlichkeitsanalyse
+      return generateFallbackPersonalityInsights(analysisData)
+    }
+  } catch (error) {
+    console.error("Fehler bei der KI-Persönlichkeitsanalyse:", error)
+    return generateFallbackPersonalityInsights(analysisData)
+  }
+}
+
+function generateFallbackPersonalityInsights(analysisData: any): PersonalityInsights {
+  const energy = analysisData.audioProfile.energy
+  const valence = analysisData.audioProfile.valence
+  const openness = analysisData.discoveryProfile.openness
+  const mainstream = analysisData.artistDiversity.mainstreamFactor
+
+  // Bestimme Persönlichkeitstyp basierend auf Daten
+  let personalityType = "Ausgewogener Hörer"
+  if (energy > 0.7 && openness > 0.6) personalityType = "Energetischer Entdecker"
+  else if (valence < 0.4 && energy < 0.5) personalityType = "Melancholischer Träumer"
+  else if (mainstream > 0.7) personalityType = "Mainstream Enthusiast"
+  else if (openness > 0.8) personalityType = "Musik Explorer"
+
+  return {
+    musicPersonalityType: personalityType,
+    listeningBehavior: `Du hörst Musik mit einer durchschnittlichen Energie von ${(energy * 100).toFixed(0)}% und zeigst eine ${openness > 0.6 ? "hohe" : "moderate"} Offenheit für neue Entdeckungen. Deine Hörgewohnheiten zeigen eine ${analysisData.listeningPatterns.diversityScore > 0.5 ? "vielfältige" : "fokussierte"} Musikauswahl.`,
+    moodDescription: `Deine Musik spiegelt eine ${valence > 0.6 ? "überwiegend positive" : valence < 0.4 ? "eher melancholische" : "ausgewogene"} Stimmung wider. Du nutzt Musik wahrscheinlich zur ${energy > 0.6 ? "Energiegewinnung und Motivation" : "Entspannung und Reflexion"}.`,
+    discoveryStyle: `Mit einer Offenheit von ${(openness * 100).toFixed(0)}% für neue Musik entdeckst du ${openness > 0.7 ? "aktiv und regelmäßig" : openness > 0.4 ? "gelegentlich" : "selten"} neue Künstler und Songs. Du bevorzugst ${analysisData.discoveryProfile.newVsOld > 0.6 ? "aktuelle" : "zeitlose"} Musik.`,
+    socialAspect: `Du bewegst dich ${mainstream > 0.6 ? "hauptsächlich im Mainstream" : mainstream < 0.4 ? "eher in Nischenbereichen" : "zwischen Mainstream und Nische"}. Deine Musikauswahl ist ${analysisData.artistDiversity.internationalFactor > 0.5 ? "international vielfältig" : "regional fokussiert"}.`,
+    recommendations: [
+      openness < 0.5
+        ? "Probiere wöchentlich einen neuen Künstler aus deinen Lieblings-Genres"
+        : "Erkunde verwandte Genres zu deinen Favoriten",
+      "Nutze Spotify's 'Discover Weekly' für personalisierte Empfehlungen",
+      energy > 0.6
+        ? "Erstelle separate Playlists für verschiedene Aktivitäten"
+        : "Experimentiere mit energiereicherer Musik für Workouts",
+      "Folge Künstlern, die du magst, um über neue Releases informiert zu bleiben",
+      mainstream > 0.7
+        ? "Entdecke Underground-Künstler in deinen Lieblings-Genres"
+        : "Teile deine Nischenfunde mit Freunden",
+    ],
   }
 }
 
@@ -350,42 +534,55 @@ export function generatePersonalityPrompt(personality: MusicPersonality, keyword
   const audioProfile = personality.audioFeatures
   const moodProfile = personality.moodProfile
   const discoveryProfile = personality.discoveryProfile
+  const insights = personality.personalityInsights
 
   return `
-Du bist ein KI-Musik-Kurator, der eine personalisierte Playlist für einen Nutzer mit folgenden Musikpräferenzen erstellt:
+Du bist ein KI-Musik-Kurator, der eine personalisierte Playlist für einen Nutzer mit folgender detaillierter Musikpersönlichkeit erstellt:
 
 **NUTZER-PERSÖNLICHKEIT:**
-- Bevorzugte Genres: ${topGenres}
-- Dominante Stimmung: ${moodProfile.dominantMood}
-- Energie-Level: ${(audioProfile.energy * 100).toFixed(0)}% (0-100%)
-- Positivität: ${(audioProfile.valence * 100).toFixed(0)}% (0-100%)
-- Tanzbarkeit: ${(audioProfile.danceability * 100).toFixed(0)}% (0-100%)
-- Akustik-Präferenz: ${(audioProfile.acousticness * 100).toFixed(0)}% (0-100%)
-- Durchschnittstempo: ${audioProfile.tempo.toFixed(0)} BPM
-- Offenheit für Neues: ${(discoveryProfile.openness * 100).toFixed(0)}% (0-100%)
-- Mainstream vs. Nische: ${(personality.artistDiversity.mainstreamFactor * 100).toFixed(0)}% mainstream
-- Neue vs. Alte Musik: ${(discoveryProfile.newVsOld * 100).toFixed(0)}% neue Musik
+- **Persönlichkeitstyp:** ${insights.musicPersonalityType}
+- **Bevorzugte Genres:** ${topGenres}
+- **Dominante Stimmung:** ${moodProfile.dominantMood}
+- **Energie-Level:** ${(audioProfile.energy * 100).toFixed(0)}% (0-100%)
+- **Positivität:** ${(audioProfile.valence * 100).toFixed(0)}% (0-100%)
+- **Tanzbarkeit:** ${(audioProfile.danceability * 100).toFixed(0)}% (0-100%)
+- **Akustik-Präferenz:** ${(audioProfile.acousticness * 100).toFixed(0)}% (0-100%)
+- **Durchschnittstempo:** ${audioProfile.tempo.toFixed(0)} BPM
+- **Offenheit für Neues:** ${(discoveryProfile.openness * 100).toFixed(0)}% (0-100%)
+- **Mainstream vs. Nische:** ${(personality.artistDiversity.mainstreamFactor * 100).toFixed(0)}% mainstream
+- **Neue vs. Alte Musik:** ${(discoveryProfile.newVsOld * 100).toFixed(0)}% neue Musik
+
+**PERSÖNLICHKEITS-INSIGHTS:**
+- **Hörverhalten:** ${insights.listeningBehavior}
+- **Stimmungsnutzung:** ${insights.moodDescription}
+- **Entdeckungsstil:** ${insights.discoveryStyle}
+- **Sozialer Aspekt:** ${insights.socialAspect}
 
 **AKTUELLE ANFRAGE:**
 Keywords: ${keywords.join(", ")}
 
 **AUFGABE:**
-Erstelle eine Playlist von 20 Songs, die perfekt zu den Keywords UND der Musikpersönlichkeit des Nutzers passt.
+Erstelle eine Playlist von 20 Songs, die perfekt zu den Keywords UND der detaillierten Musikpersönlichkeit des Nutzers passt.
 
-**BERÜCKSICHTIGE:**
-1. Die bevorzugten Genres des Nutzers (${topGenres})
-2. Das gewünschte Energie-Level (${(audioProfile.energy * 100).toFixed(0)}%)
-3. Die Stimmungspräferenz (${moodProfile.dominantMood})
-4. Die Offenheit für neue Entdeckungen (${(discoveryProfile.openness * 100).toFixed(0)}%)
-5. Das Mainstream/Nische-Verhältnis
-6. Die Keywords: ${keywords.join(", ")}
+**PERSONALISIERUNGS-STRATEGIE:**
+1. **Genre-Verteilung:** 60% aus bevorzugten Genres (${topGenres}), 40% verwandte/komplementäre Genres
+2. **Energie-Matching:** Berücksichtige das Energie-Level von ${(audioProfile.energy * 100).toFixed(0)}%
+3. **Stimmungs-Alignment:** Passe zur dominanten Stimmung "${moodProfile.dominantMood}"
+4. **Entdeckungs-Balance:** ${discoveryProfile.openness > 0.6 ? "Mische bekannte und neue Songs" : "Fokussiere auf vertraute Künstler"}
+5. **Mainstream-Balance:** ${personality.artistDiversity.mainstreamFactor > 0.6 ? "Bevorzuge populäre Songs" : "Mische Mainstream und Nische"}
+6. **Tempo-Anpassung:** Orientiere dich am bevorzugten Tempo von ~${audioProfile.tempo.toFixed(0)} BPM
 
-**STRATEGIE:**
-- 60% der Songs sollten aus den bevorzugten Genres stammen
-- 40% können verwandte oder komplementäre Genres sein
-- Berücksichtige das Energie-Level und die Stimmung
-- Mische bekannte und weniger bekannte Songs basierend auf der Offenheit
-- Achte auf eine gute Flow und Progression der Playlist
+**BERÜCKSICHTIGE BESONDERS:**
+- Die Keywords: ${keywords.join(", ")}
+- Den Persönlichkeitstyp: ${insights.musicPersonalityType}
+- Das Hörverhalten: ${insights.listeningBehavior.split(".")[0]}
+- Die Stimmungsnutzung: ${insights.moodDescription.split(".")[0]}
+
+**PLAYLIST-FLOW:**
+- Beginne mit einem starken, charakteristischen Song
+- Baue eine emotionale Reise auf, die zur Persönlichkeit passt
+- Achte auf Tempo- und Energie-Übergänge
+- Ende mit einem memorablen, zur Stimmung passenden Song
 
 Formatiere die Ausgabe als JSON-Array mit Objekten, die "title" und "artist" enthalten.
 Beispiel: [{"title": "Song Name", "artist": "Artist Name"}, ...]
