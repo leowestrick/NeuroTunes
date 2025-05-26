@@ -247,5 +247,49 @@ function generateFallbackPlaylist(keywords: string[], personality: MusicPersonal
   return fallbackSongs.slice(0, 20)
 }
 
+// Funktion zur Analyse von Keywords für bessere Playlist-Generierung
+export function analyzeKeywords(keywords: string[]) {
+  const moodKeywords = {
+    happy: ["glücklich", "fröhlich", "positiv", "gut gelaunt", "happy"],
+    sad: ["traurig", "melancholisch", "deprimiert", "down", "sad"],
+    energetic: ["energetisch", "power", "workout", "sport", "motivierend"],
+    relaxed: ["entspannt", "chill", "ruhig", "meditation", "relaxed"],
+    party: ["party", "feiern", "club", "dance", "tanzen"],
+    romantic: ["romantisch", "liebe", "romantic", "love", "date"],
+  }
+
+  const genreKeywords = {
+    pop: ["pop", "mainstream", "charts", "radio"],
+    rock: ["rock", "alternative", "indie rock", "classic rock"],
+    hiphop: ["hip-hop", "rap", "urban", "beats"],
+    electronic: ["electronic", "edm", "house", "techno", "dance"],
+    jazz: ["jazz", "blues", "soul", "swing"],
+    classical: ["klassik", "classical", "orchestra", "symphony"],
+  }
+
+  const detectedMoods = []
+  const detectedGenres = []
+
+  // Analysiere Stimmungen
+  for (const [mood, words] of Object.entries(moodKeywords)) {
+    if (keywords.some((keyword) => words.some((word) => keyword.toLowerCase().includes(word)))) {
+      detectedMoods.push(mood)
+    }
+  }
+
+  // Analysiere Genres
+  for (const [genre, words] of Object.entries(genreKeywords)) {
+    if (keywords.some((keyword) => words.some((word) => keyword.toLowerCase().includes(word)))) {
+      detectedGenres.push(genre)
+    }
+  }
+
+  return {
+    moods: detectedMoods,
+    genres: detectedGenres,
+    keywords,
+  }
+}
+
 // Exportiere auch die Persönlichkeitsanalyse für andere Komponenten
 export { analyzeMusicPersonality, type MusicPersonality } from "./music-personality"
