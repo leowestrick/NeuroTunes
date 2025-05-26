@@ -24,7 +24,7 @@ export const SpotifyContext = createContext<SpotifyContextType>({
 
 export function SpotifyProvider({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider refetchInterval={5 * 60} refetchOnWindowFocus={false}>
+    <SessionProvider>
       <SpotifyProviderInner>{children}</SpotifyProviderInner>
     </SessionProvider>
   )
@@ -36,10 +36,8 @@ function SpotifyProviderInner({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (session?.accessToken && !session.error) {
+    if (session?.accessToken) {
       fetchUserProfile(session.accessToken)
-    } else if (session?.error) {
-      setError(session.error)
     }
   }, [session])
 
@@ -56,16 +54,16 @@ function SpotifyProviderInner({ children }: { children: React.ReactNode }) {
         const userData = await response.json()
         setUser(userData)
       } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        console.warn("Fehler beim Abrufen des Benutzerprofils:", response.status)
       }
     } catch (error) {
       console.error("Fehler beim Abrufen des Benutzerprofils:", error)
-      setError(error instanceof Error ? error.message : "Unbekannter Fehler")
+      setError("Fehler beim Laden des Benutzerprofils")
     }
   }
 
   const value = {
-    isAuthenticated: !!session?.accessToken && !session.error,
+    isAuthenticated: !!session?.accessToken,
     accessToken: (session?.accessToken as string) || null,
     user,
     isLoading: status === "loading",

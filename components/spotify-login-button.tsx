@@ -6,7 +6,6 @@ import { signIn } from "next-auth/react"
 import { Button, type ButtonProps } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
 import { useState } from "react"
-import { toast } from "@/hooks/use-toast"
 
 interface SpotifyLoginButtonProps extends ButtonProps {
   children?: React.ReactNode
@@ -16,29 +15,14 @@ export function SpotifyLoginButton({ children, className, ...props }: SpotifyLog
   const [isLoading, setIsLoading] = useState(false)
 
   const handleLogin = async () => {
+    setIsLoading(true)
     try {
-      setIsLoading(true)
-
-      // Direkte Weiterleitung zu Spotify ohne redirect: false
       await signIn("spotify", {
         callbackUrl: "/dashboard",
-      })
-
-      // Diese Zeile wird nur erreicht, wenn die Weiterleitung fehlschlägt
-      setIsLoading(false)
-      toast({
-        title: "Fehler bei der Weiterleitung",
-        description: "Die Weiterleitung zu Spotify ist fehlgeschlagen. Bitte versuche es erneut.",
-        variant: "destructive",
       })
     } catch (error) {
       console.error("Login-Fehler:", error)
       setIsLoading(false)
-      toast({
-        title: "Anmeldefehler",
-        description: "Bei der Anmeldung ist ein Fehler aufgetreten. Bitte versuche es erneut.",
-        variant: "destructive",
-      })
     }
   }
 

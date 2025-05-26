@@ -28,73 +28,23 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, account, user }) {
+    async jwt({ token, account }) {
       // Initiales Token mit Account-Informationen
-      if (account && user) {
-        return {
-          ...token,
-          accessToken: account.access_token,
-          refreshToken: account.refresh_token,
-          expiresAt: account.expires_at,
-          user,
-        }
+      if (account) {
+        token.accessToken = account.access_token
+        token.refreshToken = account.refresh_token
+        token.expiresAt = account.expires_at
       }
 
-      // Token-Refresh-Logik
-      if (token.expiresAt && Date.now() < (token.expiresAt as number) * 1000) {
-        return token
-      }
-
-      // Token ist abgelaufen, versuche zu erneuern
-      try {
-        const response = await fetch("https://accounts.spotify.com/api/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${Buffer.from(
-              `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`,
-            ).toString("base64")}`,
-          },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: token.refreshToken as string,
-          }),
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error("Failed to refresh token")
-        }
-
-        return {
-          ...token,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token ?? token.refreshToken,
-          expiresAt: Math.floor(Date.now() / 1000) + data.expires_in,
-        }
-      } catch (error) {
-        console.error("Error refreshing token:", error)
-        return {
-          ...token,
-          error: "RefreshTokenError",
-        }
-      }
+      return token
     },
     async session({ session, token }) {
-      if (token) {
-        session.accessToken = token.accessToken as string
-        session.refreshToken = token.refreshToken as string
-        session.expiresAt = token.expiresAt as number
-        session.error = token.error as string
-        session.user = token.user as any
-      }
+      // Übertrage Token-Informationen zur Session
+      session.accessToken = token.accessToken as string
+      session.refreshToken = token.refreshToken as string
+      session.expiresAt = token.expiresAt as number
       return session
     },
-  },
-  pages: {
-    signIn: "/",
-    error: "/api/auth/error",
   },
   session: {
     strategy: "jwt",
