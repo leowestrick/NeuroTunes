@@ -1,7 +1,8 @@
 import { getServerSession } from "next-auth"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export async function getSession() {
-  const session = await getServerSession()
+  const session = await getServerSession(authOptions)
   return session
 }
 
@@ -12,7 +13,7 @@ export async function getAccessToken() {
 
 export async function getUserId() {
   const session = await getSession()
-  if (!session) return null
+  if (!session?.accessToken) return null
 
   try {
     const response = await fetch("https://api.spotify.com/v1/me", {

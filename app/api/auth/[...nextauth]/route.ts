@@ -29,8 +29,16 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async jwt({ token, account, user }) {
+      console.log("JWT Callback:", {
+        hasAccount: !!account,
+        hasUser: !!user,
+        hasToken: !!token,
+        tokenKeys: token ? Object.keys(token) : [],
+      })
+
       // Initiales Token mit Account-Informationen
       if (account && user) {
+        console.log("Neues Token erstellt")
         return {
           ...token,
           accessToken: account.access_token,
@@ -40,10 +48,13 @@ export const authOptions: NextAuthOptions = {
         }
       }
 
-      // Token-Refresh-Logik
+      // Prüfe ob Token noch gültig ist
       if (token.expiresAt && Date.now() < (token.expiresAt as number) * 1000) {
+        console.log("Token ist noch gültig")
         return token
       }
+
+      console.log("Token ist abgelaufen, versuche zu erneuern...")
 
       // Token ist abgelaufen, versuche zu erneuern
       try {
@@ -64,8 +75,11 @@ export const authOptions: NextAuthOptions = {
         const data = await response.json()
 
         if (!response.ok) {
+          console.error("Token-Refresh fehlgeschlagen:", data)
           throw new Error("Failed to refresh token")
         }
+
+        console.log("Token erfolgreich erneuert")
 
         return {
           ...token,
@@ -82,6 +96,12 @@ export const authOptions: NextAuthOptions = {
       }
     },
     async session({ session, token }) {
+      console.log("Session Callback:", {
+        hasSession: !!session,
+        hasToken: !!token,
+        tokenError: token.error,
+      })
+
       if (token) {
         session.accessToken = token.accessToken as string
         session.refreshToken = token.refreshToken as string
@@ -98,6 +118,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 Tage
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
