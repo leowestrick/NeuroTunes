@@ -2,6 +2,7 @@ import type React from "react"
 import { Inter } from "next/font/google"
 import { SpotifyProvider } from "@/components/spotify-provider"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -10,17 +11,6 @@ export const metadata = {
   title: "NeuroTunes - KI-gestützte Playlist-Generator",
   description: "Erstelle personalisierte Playlists basierend auf Keywords und Stimmungen",
     generator: 'v0.dev'
-}
-
-// Setze die öffentliche Basis-URL für NextAuth
-if (typeof window !== "undefined") {
-  window.process = {
-    ...window.process,
-    env: {
-      ...window.process?.env,
-      NEXT_PUBLIC_NEXTAUTH_URL: window.location.origin,
-    },
-  }
 }
 
 export default function RootLayout({
@@ -32,7 +22,10 @@ export default function RootLayout({
     <html lang="de" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SpotifyProvider>{children}</SpotifyProvider>
+          <SpotifyProvider>
+            {children}
+            <Toaster />
+          </SpotifyProvider>
         </ThemeProvider>
       </body>
     </html>

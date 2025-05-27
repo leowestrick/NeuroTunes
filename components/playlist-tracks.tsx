@@ -4,9 +4,10 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Play, Pause, Heart, MoreHorizontal } from "lucide-react"
+import { Heart, MoreHorizontal } from "lucide-react"
 import { useSpotify } from "@/hooks/use-spotify"
 import { formatDuration } from "@/lib/utils"
+import { TrackPlayer } from "@/components/track-player"
 
 interface PlaylistTracksProps {
   playlistId: string
@@ -69,14 +70,6 @@ export function PlaylistTracks({ playlistId }: PlaylistTracksProps) {
     }
   }
 
-  const togglePlay = (trackId: string) => {
-    if (currentlyPlaying === trackId) {
-      setCurrentlyPlaying(null)
-    } else {
-      setCurrentlyPlaying(trackId)
-    }
-  }
-
   const toggleLike = async (trackId: string) => {
     try {
       const method = likedTracks.has(trackId) ? "DELETE" : "PUT"
@@ -102,6 +95,10 @@ export function PlaylistTracks({ playlistId }: PlaylistTracksProps) {
     }
   }
 
+  const handleTrackPlay = (trackUri: string) => {
+    setCurrentlyPlaying(trackUri)
+  }
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -118,6 +115,8 @@ export function PlaylistTracks({ playlistId }: PlaylistTracksProps) {
       </div>
     )
   }
+
+  const playlistUris = tracks.map((track) => track.uri)
 
   return (
     <div className="bg-card rounded-lg border shadow-sm">
@@ -136,14 +135,14 @@ export function PlaylistTracks({ playlistId }: PlaylistTracksProps) {
             <div className="col-span-1 flex items-center justify-center">
               <div className="w-8 h-8 flex items-center justify-center">
                 <span className="group-hover:hidden">{index + 1}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="hidden group-hover:flex h-8 w-8"
-                  onClick={() => togglePlay(track.id)}
-                >
-                  {currentlyPlaying === track.id ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
+                <div className="hidden group-hover:flex">
+                  <TrackPlayer
+                    track={track}
+                    playlistUris={playlistUris}
+                    isCurrentlyPlaying={currentlyPlaying === track.uri}
+                    onPlay={handleTrackPlay}
+                  />
+                </div>
               </div>
             </div>
 
