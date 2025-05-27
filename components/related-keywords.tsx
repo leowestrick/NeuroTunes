@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2 } from "lucide-react"
 
 interface RelatedKeywordsProps {
-  keywords: string[]
+  keywords?: string[] // Make it optional
 }
 
 // Beispiel-Mapping für verwandte Keywords
@@ -22,13 +22,18 @@ const RELATED_KEYWORDS: Record<string, string[]> = {
   Jazz: ["blues", "soul", "swing", "instrumental"],
 }
 
-export function RelatedKeywords({ keywords }: RelatedKeywordsProps) {
+export function RelatedKeywords({ keywords = [] }: RelatedKeywordsProps) {
   const router = useRouter()
   const [isGenerating, setIsGenerating] = useState(false)
 
   // Sammle verwandte Keywords basierend auf den aktuellen Keywords
   const getRelatedKeywords = () => {
     const related = new Set<string>()
+
+    // Safety check: ensure keywords is an array
+    if (!keywords || !Array.isArray(keywords)) {
+      return []
+    }
 
     keywords.forEach((keyword) => {
       const relatedToKeyword = RELATED_KEYWORDS[keyword] || []
@@ -68,6 +73,23 @@ export function RelatedKeywords({ keywords }: RelatedKeywordsProps) {
     } catch (error) {
       console.error("Fehler:", error)
     }
+  }
+
+  // Early return if no keywords provided
+  if (!keywords || keywords.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Verwandte Keywords</CardTitle>
+          <CardDescription>Keine Keywords verfügbar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Erstelle zuerst eine Playlist, um verwandte Keywords zu sehen.
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
