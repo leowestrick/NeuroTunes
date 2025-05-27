@@ -6,6 +6,7 @@ import { PlaylistTracks } from "@/components/playlist-tracks"
 import { PlaylistActions } from "@/components/playlist-actions"
 import { RelatedKeywords } from "@/components/related-keywords"
 import { SpotifyPlayer } from "@/components/spotify-player"
+import { DeviceSelector } from "@/components/device-selector"
 
 interface PlaylistPageProps {
   params: {
@@ -36,6 +37,7 @@ export default async function PlaylistPage({ params }: PlaylistPageProps) {
           </Suspense>
         </div>
         <div className="space-y-6">
+          <DeviceSelector />
           <PlaylistActions playlistId={params.id} />
           <RelatedKeywords keywords={playlist.keywords || []} />
         </div>

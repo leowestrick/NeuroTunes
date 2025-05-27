@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { useSpotify } from "@/hooks/use-spotify"
 import { toast } from "@/hooks/use-toast"
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart } from "lucide-react"
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Heart, Wifi, WifiOff } from "lucide-react"
 import Image from "next/image"
 
 interface SpotifyPlayerProps {
@@ -74,10 +74,22 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
   const [isSDKReady, setIsSDKReady] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [isLiked, setIsLiked] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
   // SDK laden
   useEffect(() => {
     if (!accessToken) return
+
+    // Prüfe ob SDK bereits geladen ist
+    if (window.Spotify) {
+      setIsSDKReady(true)
+      return
+    }
+
+    // Prüfe ob Script bereits existiert
+    if (document.querySelector('script[src="https://sdk.scdn.co/spotify-player.js"]')) {
+      return
+    }
 
     const script = document.createElement("script")
     script.src = "https://sdk.scdn.co/spotify-player.js"
@@ -89,7 +101,9 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
     }
 
     return () => {
-      document.body.removeChild(script)
+      if (script.parentNode) {
+        document.body.removeChild(script)
+      }
     }
   }, [accessToken])
 
@@ -98,7 +112,7 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
     if (!isSDKReady || !accessToken || player) return
 
     const spotifyPlayer = new window.Spotify.Player({
-      name: `NeuroTunes Player - ${user?.display_name || "User"}`,
+      name: `NeuroTunes Web Player - ${user?.display_name || "User"}`,
       getOAuthToken: (cb) => cb(accessToken),
       volume: volume / 100,
     })
@@ -108,15 +122,21 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
       console.log("Spotify Player bereit mit Device ID:", device_id)
       setDeviceId(device_id)
       setIsConnected(true)
+      setConnectionError(null)
+
+      // Aktiviere das Gerät automatisch
+      activateDevice(device_id)
+
       toast({
-        title: "Spotify Player bereit",
-        description: "Du kannst jetzt Songs direkt in NeuroTunes abspielen!",
+        title: "NeuroTunes Player bereit",
+        description: "Du kannst jetzt Songs direkt abspielen!",
       })
     })
 
     spotifyPlayer.addListener("not_ready", ({ device_id }) => {
       console.log("Device ID ist offline:", device_id)
       setIsConnected(false)
+      setConnectionError("Gerät ist offline")
     })
 
     spotifyPlayer.addListener("player_state_changed", (state) => {
@@ -128,6 +148,7 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
 
     spotifyPlayer.addListener("initialization_error", ({ message }) => {
       console.error("Initialisierungsfehler:", message)
+      setConnectionError("Initialisierungsfehler")
       toast({
         title: "Player-Fehler",
         description: "Spotify Player konnte nicht initialisiert werden.",
@@ -137,6 +158,7 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
 
     spotifyPlayer.addListener("authentication_error", ({ message }) => {
       console.error("Authentifizierungsfehler:", message)
+      setConnectionError("Authentifizierungsfehler")
       toast({
         title: "Authentifizierungsfehler",
         description: "Spotify-Token ist ungültig. Bitte melde dich erneut an.",
@@ -146,14 +168,23 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
 
     spotifyPlayer.addListener("account_error", ({ message }) => {
       console.error("Account-Fehler:", message)
+      setConnectionError("Premium erforderlich")
       toast({
-        title: "Account-Fehler",
-        description: "Spotify Premium ist erforderlich für die Wiedergabe.",
+        title: "Spotify Premium erforderlich",
+        description: "Für die Web-Wiedergabe ist Spotify Premium nötig.",
         variant: "destructive",
       })
     })
 
-    spotifyPlayer.connect()
+    spotifyPlayer.connect().then((success) => {
+      if (success) {
+        console.log("Erfolgreich mit Spotify Web Playback SDK verbunden")
+      } else {
+        console.error("Verbindung zum Spotify Web Playback SDK fehlgeschlagen")
+        setConnectionError("Verbindung fehlgeschlagen")
+      }
+    })
+
     setPlayer(spotifyPlayer)
 
     return () => {
@@ -161,21 +192,57 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
     }
   }, [isSDKReady, accessToken, user, volume])
 
+  // Gerät aktivieren
+  const activateDevice = async (deviceId: string) => {
+    try {
+      await fetch("https://api.spotify.com/v1/me/player", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          device_ids: [deviceId],
+          play: false,
+        }),
+      })
+      console.log("Gerät aktiviert:", deviceId)
+    } catch (error) {
+      console.error("Fehler beim Aktivieren des Geräts:", error)
+    }
+  }
+
   // Track abspielen
   const playTrack = useCallback(
     async (uri: string, uris?: string[]) => {
-      if (!deviceId || !accessToken) return
+      if (!deviceId || !accessToken) {
+        toast({
+          title: "Player nicht bereit",
+          description: "Warte bis der Player verbunden ist.",
+          variant: "destructive",
+        })
+        return
+      }
 
       try {
         const body = uris ? { uris, offset: { uri } } : { uris: [uri] }
 
-        await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
+        const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
           body: JSON.stringify(body),
+        })
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+
+        toast({
+          title: "Wiedergabe gestartet",
+          description: "Track wird abgespielt",
         })
       } catch (error) {
         console.error("Fehler beim Abspielen:", error)
@@ -191,10 +258,10 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
 
   // Auto-Play
   useEffect(() => {
-    if (autoPlay && trackUri && isConnected) {
+    if (autoPlay && trackUri && isConnected && deviceId) {
       playTrack(trackUri, trackUris)
     }
-  }, [autoPlay, trackUri, trackUris, isConnected, playTrack])
+  }, [autoPlay, trackUri, trackUris, isConnected, deviceId, playTrack])
 
   // Like-Status prüfen
   const checkIfLiked = async (trackId: string) => {
@@ -268,10 +335,33 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
   if (!isConnected || !playerState) {
     return (
       <Card className="w-full">
-        <CardContent className="p-4 text-center">
-          <p className="text-muted-foreground">
-            {isSDKReady ? "Verbinde mit Spotify Player..." : "Lade Spotify Player..."}
-          </p>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-center gap-2">
+            {connectionError ? (
+              <>
+                <WifiOff className="h-5 w-5 text-red-500" />
+                <span className="text-muted-foreground">{connectionError}</span>
+              </>
+            ) : (
+              <>
+                <Wifi className="h-5 w-5 text-emerald-500 animate-pulse" />
+                <span className="text-muted-foreground">
+                  {isSDKReady ? "Verbinde mit Spotify..." : "Lade Spotify Player..."}
+                </span>
+              </>
+            )}
+          </div>
+          {connectionError === "Premium erforderlich" && (
+            <div className="mt-2 text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open("https://www.spotify.com/premium/", "_blank")}
+              >
+                Spotify Premium holen
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     )
@@ -284,6 +374,12 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
     <Card className="w-full bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
       <CardContent className="p-4">
         <div className="flex items-center gap-4">
+          {/* Connection Status */}
+          <div className="flex items-center gap-1">
+            <Wifi className="h-4 w-4 text-emerald-500" />
+            <span className="text-xs text-emerald-600">Live</span>
+          </div>
+
           {/* Album Cover */}
           <div className="relative h-16 w-16 overflow-hidden rounded-md flex-shrink-0">
             <Image
