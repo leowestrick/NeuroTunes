@@ -36,11 +36,10 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
 
     console.log("Gemini Antwort erhalten")
 
-    // Parse die JSON-Antwort
+    // Parse die JSON-Antwort mit verbesserter Logik
     let songSuggestions
     try {
-      const cleanedText = text.replace(/```json\n?|\n?```/g, "").trim()
-      songSuggestions = JSON.parse(cleanedText)
+      songSuggestions = parseGeminiResponse(text)
     } catch (parseError) {
       console.error("Fehler beim Parsen der Gemini-Antwort:", parseError)
       console.log("Rohe Antwort:", text)
@@ -65,27 +64,39 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
       }
 
       try {
+        // Bereinige Künstlernamen von Kommentaren
+        const cleanArtist = cleanArtistName(song.artist)
+        const cleanTitle = cleanSongTitle(song.title)
+
         // Verschiedene Suchstrategien ausprobieren
         const searchQueries = [
-          `track:"${song.title}" artist:"${song.artist}"`,
-          `"${song.title}" "${song.artist}"`,
-          `${song.title} ${song.artist}`,
+          `track:"${cleanTitle}" artist:"${cleanArtist}"`,
+          `"${cleanTitle}" "${cleanArtist}"`,
+          `${cleanTitle} ${cleanArtist}`,
+          // Fallback ohne Anführungszeichen
+          `${cleanTitle} ${cleanArtist}`.replace(/['"]/g, ""),
         ]
 
         let searchResults = null
 
         for (const query of searchQueries) {
-          searchResults = await searchTracks(accessToken, query, 1)
+          searchResults = await searchTracks(accessToken, query, 3) // Mehr Ergebnisse für bessere Auswahl
           if (searchResults && searchResults.length > 0) {
-            break
+            // Wähle das beste Ergebnis basierend auf Übereinstimmung
+            const bestMatch = findBestMatch(cleanTitle, cleanArtist, searchResults)
+            if (bestMatch) {
+              searchResults = [bestMatch]
+              break
+            }
           }
           await new Promise((resolve) => setTimeout(resolve, 100))
         }
 
         if (searchResults && searchResults.length > 0) {
           tracks.push(searchResults[0])
+          console.log(`✓ Gefunden: ${cleanTitle} von ${cleanArtist}`)
         } else {
-          console.warn(`Song nicht gefunden: ${song.title} von ${song.artist}`)
+          console.warn(`✗ Song nicht gefunden: ${cleanTitle} von ${cleanArtist}`)
         }
       } catch (error) {
         console.error(`Fehler bei der Suche nach ${song.title}:`, error)
@@ -139,6 +150,150 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
   }
 }
 
+// Verbesserte JSON-Parsing-Funktion
+function parseGeminiResponse(text: string) {
+  console.log("Parsing Gemini response...")
+
+  // Entferne Code-Block-Marker
+  const cleanedText = text.replace(/```json\n?|\n?```/g, "").trim()
+
+  // Finde JSON-Array im Text
+  const jsonStart = cleanedText.indexOf("[")
+  const jsonEnd = cleanedText.lastIndexOf("]")
+
+  if (jsonStart === -1 || jsonEnd === -1 || jsonStart >= jsonEnd) {
+    throw new Error("Kein gültiges JSON-Array gefunden")
+  }
+
+  // Extrahiere nur den JSON-Teil
+  const jsonText = cleanedText.substring(jsonStart, jsonEnd + 1)
+
+  try {
+    const parsed = JSON.parse(jsonText)
+    console.log(`✓ JSON erfolgreich geparst: ${parsed.length} Songs`)
+    return parsed
+  } catch (error) {
+    console.error("JSON-Parsing fehlgeschlagen:", error)
+    console.log("Extrahierter JSON-Text:", jsonText)
+
+    // Versuche JSON zu reparieren
+    return repairAndParseJSON(jsonText)
+  }
+}
+
+// JSON-Reparatur-Funktion
+function repairAndParseJSON(jsonText: string) {
+  console.log("Versuche JSON zu reparieren...")
+
+  try {
+    // Entferne Kommentare in Klammern aus dem JSON
+    let repairedText = jsonText.replace(/$$.*?$$/g, "")
+
+    // Entferne zusätzliche Kommentare nach Anführungszeichen
+    repairedText = repairedText.replace(/"([^"]*)"([^,\]}]*)/g, '"$1"')
+
+    // Bereinige Zeilenumbrüche und Leerzeichen
+    repairedText = repairedText.replace(/\s+/g, " ").trim()
+
+    const parsed = JSON.parse(repairedText)
+    console.log("✓ JSON erfolgreich repariert und geparst")
+    return parsed
+  } catch (error) {
+    console.error("JSON-Reparatur fehlgeschlagen:", error)
+    throw new Error("JSON konnte nicht repariert werden")
+  }
+}
+
+// Bereinige Künstlernamen von Kommentaren
+function cleanArtistName(artist: string): string {
+  return artist
+    .replace(/$$.*?$$/g, "") // Entferne Kommentare in Klammern
+    .replace(/\s*ft\.?\s*/gi, " ft. ") // Normalisiere "ft."
+    .replace(/\s*feat\.?\s*/gi, " ft. ") // Normalisiere "feat."
+    .replace(/\s*&\s*/g, " & ") // Normalisiere "&"
+    .replace(/\s+/g, " ") // Entferne mehrfache Leerzeichen
+    .trim()
+}
+
+// Bereinige Songtitel
+function cleanSongTitle(title: string): string {
+  return title
+    .replace(/$$.*?$$/g, "") // Entferne Kommentare in Klammern
+    .replace(/\s+/g, " ") // Entferne mehrfache Leerzeichen
+    .trim()
+}
+
+// Finde beste Übereinstimmung
+function findBestMatch(title: string, artist: string, results: any[]) {
+  const normalizeString = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, "")
+
+  const normalizedTitle = normalizeString(title)
+  const normalizedArtist = normalizeString(artist)
+
+  let bestMatch = null
+  let bestScore = 0
+
+  for (const track of results) {
+    const trackTitle = normalizeString(track.name)
+    const trackArtist = normalizeString(track.artists[0]?.name || "")
+
+    // Berechne Ähnlichkeitsscore
+    const titleScore = calculateSimilarity(normalizedTitle, trackTitle)
+    const artistScore = calculateSimilarity(normalizedArtist, trackArtist)
+    const totalScore = titleScore * 0.7 + artistScore * 0.3 // Titel wichtiger als Künstler
+
+    if (totalScore > bestScore && totalScore > 0.6) {
+      // Mindest-Ähnlichkeit von 60%
+      bestScore = totalScore
+      bestMatch = track
+    }
+  }
+
+  return bestMatch
+}
+
+// Einfache Ähnlichkeitsberechnung
+function calculateSimilarity(str1: string, str2: string): number {
+  if (str1 === str2) return 1
+
+  const longer = str1.length > str2.length ? str1 : str2
+  const shorter = str1.length > str2.length ? str2 : str1
+
+  if (longer.length === 0) return 1
+
+  const editDistance = levenshteinDistance(longer, shorter)
+  return (longer.length - editDistance) / longer.length
+}
+
+// Levenshtein-Distanz
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix = []
+
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i]
+  }
+
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j
+  }
+
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1]
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1, // insertion
+          matrix[i - 1][j] + 1, // deletion
+        )
+      }
+    }
+  }
+
+  return matrix[str2.length][str1.length]
+}
+
 function generateStandardPrompt(keywords: string[]): string {
   return `
 Du bist ein Musik-Experte und Playlist-Kurator. Erstelle eine Playlist basierend auf den folgenden Keywords: ${keywords.join(", ")}.
@@ -152,10 +307,19 @@ Berücksichtige dabei:
 - Eine gute Mischung aus verschiedenen Künstlern
 - Zeitlose Klassiker und moderne Hits
 
-Formatiere die Ausgabe als JSON-Array mit Objekten, die "title" und "artist" enthalten.
-Beispiel: [{"title": "Song Name", "artist": "Artist Name"}, ...]
+WICHTIG: 
+- Gib NUR ein sauberes JSON-Array zurück
+- Keine zusätzlichen Kommentare oder Erklärungen
+- Keine Kommentare in den Künstlernamen
+- Format: [{"title": "Song Name", "artist": "Artist Name"}, ...]
 
-Gib NUR das JSON-Array zurück, ohne zusätzlichen Text oder Erklärungen.
+Beispiel:
+[
+  {"title": "Blinding Lights", "artist": "The Weeknd"},
+  {"title": "Levitating", "artist": "Dua Lipa"}
+]
+
+Gib NUR das JSON-Array zurück, ohne Code-Blöcke oder zusätzlichen Text.
 `
 }
 
