@@ -3,7 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Music, Shield, Zap, Users } from "lucide-react"
 import Link from "next/link"
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: { [key: string]: string | string[] | undefined }
+}
+
+export default function LoginPage({ searchParams }: LoginPageProps) {
+  // Prüfe, ob eine Neu-Authentifizierung angefordert wurde
+  const reauth = searchParams.reauth === "true"
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-emerald-900 to-emerald-700 p-4">
       <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
@@ -13,13 +20,19 @@ export default function LoginPage() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
               <Music className="h-6 w-6 text-emerald-600" />
             </div>
-            <CardTitle className="text-2xl">Anmelden bei NeuroTunes</CardTitle>
+            <CardTitle className="text-2xl">
+              {reauth ? "Spotify-Berechtigungen erneuern" : "Anmelden bei NeuroTunes"}
+            </CardTitle>
             <CardDescription>
-              Melde dich mit deinem Spotify-Konto an, um personalisierte Playlists mit KI zu erstellen.
+              {reauth
+                ? "Bitte melde dich erneut bei Spotify an, um alle benötigten Berechtigungen zu erhalten."
+                : "Melde dich mit deinem Spotify-Konto an, um personalisierte Playlists mit KI zu erstellen."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <SpotifyLoginButton className="w-full h-12 text-lg">Mit Spotify fortfahren</SpotifyLoginButton>
+            <SpotifyLoginButton className="w-full h-12 text-lg" forceReauth={reauth}>
+              {reauth ? "Erneut mit Spotify anmelden" : "Mit Spotify fortfahren"}
+            </SpotifyLoginButton>
 
             <div className="text-center text-sm text-muted-foreground space-y-2">
               <p>

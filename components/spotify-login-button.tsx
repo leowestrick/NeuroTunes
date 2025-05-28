@@ -10,12 +10,14 @@ import { toast } from "@/hooks/use-toast"
 interface SpotifyLoginButtonProps extends ButtonProps {
   children?: React.ReactNode
   redirectTo?: string
+  forceReauth?: boolean
 }
 
 export function SpotifyLoginButton({
   children,
   className,
   redirectTo = "/dashboard",
+  forceReauth = false,
   ...props
 }: SpotifyLoginButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
@@ -30,6 +32,7 @@ export function SpotifyLoginButton({
       await signIn("spotify", {
         callbackUrl: redirectTo,
         redirect: true, // Let NextAuth handle the redirect
+        prompt: forceReauth ? "login" : undefined, // Force re-authentication if needed
       })
     } catch (error) {
       console.error("Login error:", error)
@@ -64,5 +67,6 @@ export function SpotifyLoginButton({
         </>
       )}
     </Button>
-  )
+  \
+}
 }

@@ -1,6 +1,7 @@
 import NextAuth, { type NextAuthOptions } from "next-auth"
 import SpotifyProvider from "next-auth/providers/spotify"
 
+// Erweiterte Scopes für besseren API-Zugriff
 const scopes = [
   "user-read-email",
   "user-read-private",
@@ -15,7 +16,9 @@ const scopes = [
   "user-read-recently-played",
   "user-follow-read",
   "user-read-currently-playing",
-].join(" ")
+  "user-modify-playback-state", // Hinzugefügt für bessere Playback-Kontrolle
+  "user-read-playback-position", // Hinzugefügt für Audio-Features
+]
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -24,7 +27,8 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: scopes,
+          scope: scopes.join(" "),
+          show_dialog: true, // Zeigt immer den Spotify-Dialog an, um Berechtigungsprobleme zu vermeiden
         },
       },
     }),
@@ -90,6 +94,7 @@ export const authOptions: NextAuthOptions = {
 
 async function refreshAccessToken(token: any) {
   try {
+    console.log("Refreshing access token...")
     const url = "https://accounts.spotify.com/api/token"
 
     const response = await fetch(url, {

@@ -167,6 +167,7 @@ export async function getAudioFeatures(accessToken: string, trackIds: string[]) 
   const ids = validTrackIds.join(",")
 
   try {
+    // Versuche zuerst, die Audio-Features für alle Tracks auf einmal zu holen
     const response = await fetch(`https://api.spotify.com/v1/audio-features?ids=${ids}`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -177,7 +178,13 @@ export async function getAudioFeatures(accessToken: string, trackIds: string[]) 
       const errorText = await response.text()
       console.error(`Audio-Features API Fehler (${response.status}):`, errorText)
 
-      // Fallback: Leere Audio-Features zurückgeben statt Fehler zu werfen
+      // Bei 403 oder 429 Fehlern: Versuche einzelne Tracks
+      if (response.status === 403 || response.status === 429) {
+        console.log("Versuche Audio-Features für einzelne Tracks zu laden...")
+        return await getAudioFeaturesIndividually(accessToken, validTrackIds)
+      }
+
+      // Fallback: Leere Audio-Features zurückgeben
       return { audio_features: [] }
     }
 
@@ -190,6 +197,48 @@ export async function getAudioFeatures(accessToken: string, trackIds: string[]) 
     // Fallback: Leere Audio-Features zurückgeben
     return { audio_features: [] }
   }
+}
+
+// Hilfsfunktion, um Audio-Features für einzelne Tracks zu laden
+async function getAudioFeaturesIndividually(accessToken: string, trackIds: string[]) {
+  console.log(`Versuche Audio-Features für ${trackIds.length} einzelne Tracks zu laden...`)
+
+  const audioFeatures = []
+  const batchSize = 5 // Kleinere Batches, um Rate Limiting zu vermeiden
+
+  // Verarbeite Tracks in kleinen Batches
+  for (let i = 0; i < trackIds.length; i += batchSize) {
+    const batch = trackIds.slice(i, i + batchSize)
+
+    // Warte kurz zwischen den Batches, um Rate Limiting zu vermeiden
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+    }
+
+    const batchPromises = batch.map(async (trackId) => {
+      try {
+        const response = await fetch(`https://api.spotify.com/v1/audio-features/${trackId}`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (response.ok) {
+          return await response.json()
+        }
+        return null
+      } catch (error) {
+        console.warn(`Fehler beim Laden der Audio-Features für Track ${trackId}:`, error)
+        return null
+      }
+    })
+
+    const batchResults = await Promise.all(batchPromises)
+    audioFeatures.push(...batchResults.filter(Boolean))
+  }
+
+  console.log(`${audioFeatures.length} von ${trackIds.length} Audio-Features einzeln geladen`)
+  return { audio_features: audioFeatures }
 }
 
 export async function getSavedTracks(accessToken: string, limit = 50) {
@@ -218,4 +267,46 @@ export async function getFollowedArtists(accessToken: string, limit = 50) {
   }
 
   return response.json()
+}
+
+// Neue Funktion zum Testen der API-Berechtigungen
+export async function testApiPermissions(accessToken: string) {
+  const endpoints = [
+    { name: "User Profile", url: "https://api.spotify.com/v1/me" },
+    { name: "Top Artists", url: "https://api.spotify.com/v1/me/top/artists?limit=1" },
+    { name: "Top Tracks", url: "https://api.spotify.com/v1/me/top/tracks?limit=1" },
+    { name: "Recently Played", url: "https://api.spotify.com/v1/me/player/recently-played?limit=1" },
+    { name: "Saved Tracks", url: "https://api.spotify.com/v1/me/tracks?limit=1" },
+    { name: "Followed Artists", url: "https://api.spotify.com/v1/me/following?type=artist&limit=1" },
+    { name: "Audio Features", url: "https://api.spotify.com/v1/audio-features/06AKEBrKUckW0KREUWRnvT" }, // Shape of You (Ed Sheeran) als Test-Track
+  ]
+
+  const results = {}
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint.url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      results[endpoint.name] = {
+        status: response.status,
+        ok: response.ok,
+      }
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        results[endpoint.name].error = errorText
+      }
+    } catch (error) {
+      results[endpoint.name] = {
+        status: "error",
+        error: error.message,
+      }
+    }
+  }
+
+  return results
 }
