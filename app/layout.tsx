@@ -2,6 +2,7 @@ import type React from "react"
 import { Inter } from "next/font/google"
 import { SpotifyProvider } from "@/components/spotify-provider"
 import { ThemeProvider } from "@/components/theme-provider"
+import { Header } from "@/components/header"
 import { Toaster } from "@/components/ui/toaster"
 import "./globals.css"
 
@@ -23,7 +24,10 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <SpotifyProvider>
-            {children}
+            <div className="min-h-screen flex flex-col">
+              <Header />
+              <main className="flex-1">{children}</main>
+            </div>
             <Toaster />
           </SpotifyProvider>
         </ThemeProvider>
