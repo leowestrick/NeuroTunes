@@ -205,6 +205,12 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
 }
 
 async function generatePersonalityInsights(analysisData: any): Promise<PersonalityInsights> {
+  // Überprüfe ob Google AI verfügbar ist
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    console.log("Google AI API Key nicht verfügbar, verwende Fallback-Persönlichkeitsanalyse")
+    return generateFallbackPersonalityInsights(analysisData)
+  }
+
   try {
     const prompt = `
 Du bist ein Experte für Musikpsychologie und Persönlichkeitsanalyse. Analysiere die folgenden Spotify-Hördaten und erstelle ein detailliertes Musikpersönlichkeitsprofil.

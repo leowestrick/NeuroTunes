@@ -1,3 +1,9 @@
+// Überprüfe ob Google AI API Key verfügbar ist
+const hasGoogleAI = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
+
+if (!hasGoogleAI) {
+  console.warn("Google Generative AI API key is missing. Falling back to keyword-based playlist generation.")
+}
 import { searchTracks } from "./spotify"
 import { generateText } from "ai"
 import { google } from "@ai-sdk/google"
@@ -5,16 +11,14 @@ import { analyzeMusicPersonality, generatePersonalityPrompt, type MusicPersonali
 
 export async function generatePlaylist(keywords: string[], accessToken: string) {
   try {
-    console.log("Starte Playlist-Generierung mit Persönlichkeitsanalyse...")
+    console.log("Starte Playlist-Generierung...")
 
-    // Analysiere die Musikpersönlichkeit des Nutzers
+    // Analysiere die Musikpersönlichkeit des Nutzers (falls möglich)
     let personality: MusicPersonality | null = null
-    let prompt = ""
 
     try {
       console.log("Analysiere Musikpersönlichkeit...")
       personality = await analyzeMusicPersonality(accessToken)
-      prompt = generatePersonalityPrompt(personality, keywords)
       console.log("Persönlichkeitsanalyse abgeschlossen:", {
         topGenres: personality.genres.slice(0, 3).map((g) => g.genre),
         dominantMood: personality.moodProfile.dominantMood,
@@ -22,35 +26,40 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
         openness: Math.round(personality.discoveryProfile.openness * 100),
       })
     } catch (personalityError) {
-      console.warn("Persönlichkeitsanalyse fehlgeschlagen, verwende Standard-Prompt:", personalityError)
-      prompt = generateStandardPrompt(keywords)
+      console.warn("Persönlichkeitsanalyse fehlgeschlagen:", personalityError)
     }
 
-    // Generiere Songvorschläge mit dem personalisierten Prompt
-    console.log("Generiere Songvorschläge mit Google Gemini...")
-
-    const { text } = await generateText({
-      model: google("gemini-1.5-flash"),
-      prompt,
-      temperature: personality ? 0.6 : 0.7, // Weniger Zufälligkeit bei personalisierten Prompts
-      maxTokens: 1000,
-    })
-
-    console.log("Gemini Antwort erhalten")
-
-    // Parse die JSON-Antwort mit verbesserter Logik
     let songSuggestions
-    try {
-      songSuggestions = parseGeminiResponse(text)
-    } catch (parseError) {
-      console.error("Fehler beim Parsen der Gemini-Antwort:", parseError)
-      console.log("Rohe Antwort:", text)
+
+    // Versuche KI-Generierung nur wenn API-Schlüssel verfügbar ist
+    if (hasGoogleAI) {
+      try {
+        console.log("Generiere Songvorschläge mit Google Gemini...")
+
+        const prompt = personality ? generatePersonalityPrompt(personality, keywords) : generateStandardPrompt(keywords)
+
+        const { text } = await generateText({
+          model: google("gemini-1.5-flash"),
+          prompt,
+          temperature: personality ? 0.6 : 0.7,
+          maxTokens: 1000,
+        })
+
+        console.log("Gemini Antwort erhalten")
+        songSuggestions = parseGeminiResponse(text)
+      } catch (aiError) {
+        console.warn("KI-Generierung fehlgeschlagen, verwende Fallback:", aiError)
+        songSuggestions = generateFallbackPlaylist(keywords, personality)
+      }
+    } else {
+      console.log("Verwende Fallback-Playlist-Generierung (kein Google AI API Key)")
       songSuggestions = generateFallbackPlaylist(keywords, personality)
     }
 
+    // Rest der Funktion bleibt gleich...
     // Validiere die Struktur der Antwort
     if (!Array.isArray(songSuggestions)) {
-      console.warn("Gemini-Antwort ist kein Array, verwende Fallback")
+      console.warn("Song-Vorschläge sind kein Array, verwende Fallback")
       songSuggestions = generateFallbackPlaylist(keywords, personality)
     }
 
@@ -86,9 +95,8 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
 
         for (const query of searchQueries) {
           try {
-            searchResults = await searchTracks(accessToken, query, 3) // Mehr Ergebnisse für bessere Auswahl
+            searchResults = await searchTracks(accessToken, query, 3)
             if (searchResults && searchResults.length > 0) {
-              // Wähle das beste Ergebnis basierend auf Übereinstimmung
               const bestMatch = findBestMatch(cleanTitle, cleanArtist, searchResults)
               if (bestMatch) {
                 searchResults = [bestMatch]
@@ -376,35 +384,86 @@ async function searchPersonalizedTracks(
 }
 
 function generateFallbackPlaylist(keywords: string[], personality: MusicPersonality | null) {
-  const fallbackSongs = [
-    // Standard-Songs
-    { title: "Weightless", artist: "Marconi Union" },
-    { title: "Clair de Lune", artist: "Claude Debussy" },
-    { title: "Mad World", artist: "Gary Jules" },
-    { title: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars" },
-    { title: "Can't Stop the Feeling!", artist: "Justin Timberlake" },
-    { title: "Happy", artist: "Pharrell Williams" },
-    { title: "I Gotta Feeling", artist: "The Black Eyed Peas" },
-    { title: "Party Rock Anthem", artist: "LMFAO" },
-    { title: "Good as Hell", artist: "Lizzo" },
-    { title: "Summer", artist: "Calvin Harris" },
-    { title: "Blinding Lights", artist: "The Weeknd" },
-    { title: "Levitating", artist: "Dua Lipa" },
-    { title: "Don't Stop Believin'", artist: "Journey" },
-    { title: "Bohemian Rhapsody", artist: "Queen" },
-    { title: "Sweet Child O' Mine", artist: "Guns N' Roses" },
-    { title: "Shape of You", artist: "Ed Sheeran" },
-    { title: "Anti-Hero", artist: "Taylor Swift" },
-    { title: "As It Was", artist: "Harry Styles" },
-    { title: "God's Plan", artist: "Drake" },
-    { title: "HUMBLE.", artist: "Kendrick Lamar" },
-  ]
+  console.log("Generiere Fallback-Playlist basierend auf Keywords:", keywords)
 
-  // Personalisiere Fallback basierend auf Persönlichkeit
+  // Keyword-basierte Song-Zuordnung
+  const keywordSongs = {
+    entspannt: [
+      { title: "Weightless", artist: "Marconi Union" },
+      { title: "Clair de Lune", artist: "Claude Debussy" },
+      { title: "Mad World", artist: "Gary Jules" },
+      { title: "The Night We Met", artist: "Lord Huron" },
+      { title: "Holocene", artist: "Bon Iver" },
+    ],
+    energetisch: [
+      { title: "Uptown Funk", artist: "Mark Ronson ft. Bruno Mars" },
+      { title: "Can't Stop the Feeling!", artist: "Justin Timberlake" },
+      { title: "Thunder", artist: "Imagine Dragons" },
+      { title: "High Hopes", artist: "Panic! At The Disco" },
+      { title: "Believer", artist: "Imagine Dragons" },
+    ],
+    party: [
+      { title: "I Gotta Feeling", artist: "The Black Eyed Peas" },
+      { title: "Party Rock Anthem", artist: "LMFAO" },
+      { title: "Good as Hell", artist: "Lizzo" },
+      { title: "Levitating", artist: "Dua Lipa" },
+      { title: "Blinding Lights", artist: "The Weeknd" },
+    ],
+    sommer: [
+      { title: "Summer", artist: "Calvin Harris" },
+      { title: "Cruel Summer", artist: "Taylor Swift" },
+      { title: "California Gurls", artist: "Katy Perry" },
+      { title: "Summertime Magic", artist: "Childish Gambino" },
+      { title: "Good 4 U", artist: "Olivia Rodrigo" },
+    ],
+    workout: [
+      { title: "Stronger", artist: "Kanye West" },
+      { title: "Till I Collapse", artist: "Eminem" },
+      { title: "Eye of the Tiger", artist: "Survivor" },
+      { title: "Pump It", artist: "The Black Eyed Peas" },
+      { title: "Work Out", artist: "J. Cole" },
+    ],
+    chill: [
+      { title: "Stay", artist: "Rihanna" },
+      { title: "Electric Feel", artist: "MGMT" },
+      { title: "Midnight City", artist: "M83" },
+      { title: "Breathe Me", artist: "Sia" },
+      { title: "Skinny Love", artist: "Bon Iver" },
+    ],
+  }
+
+  const fallbackSongs = []
+
+  // Sammle Songs basierend auf Keywords
+  keywords.forEach((keyword) => {
+    const lowerKeyword = keyword.toLowerCase()
+    Object.entries(keywordSongs).forEach(([key, songs]) => {
+      if (lowerKeyword.includes(key) || key.includes(lowerKeyword)) {
+        fallbackSongs.push(...songs)
+      }
+    })
+  })
+
+  // Füge Standard-Songs hinzu wenn keine spezifischen gefunden wurden
+  if (fallbackSongs.length < 10) {
+    fallbackSongs.push(
+      { title: "Shape of You", artist: "Ed Sheeran" },
+      { title: "Anti-Hero", artist: "Taylor Swift" },
+      { title: "As It Was", artist: "Harry Styles" },
+      { title: "God's Plan", artist: "Drake" },
+      { title: "HUMBLE.", artist: "Kendrick Lamar" },
+      { title: "Don't Stop Believin'", artist: "Journey" },
+      { title: "Bohemian Rhapsody", artist: "Queen" },
+      { title: "Sweet Child O' Mine", artist: "Guns N' Roses" },
+      { title: "Mr. Brightside", artist: "The Killers" },
+      { title: "Flowers", artist: "Miley Cyrus" },
+    )
+  }
+
+  // Personalisiere basierend auf Persönlichkeit falls verfügbar
   if (personality) {
     const topGenres = personality.genres.slice(0, 3).map((g) => g.genre)
 
-    // Füge genre-spezifische Songs hinzu
     if (topGenres.includes("pop")) {
       fallbackSongs.unshift(
         { title: "Flowers", artist: "Miley Cyrus" },
@@ -427,7 +486,12 @@ function generateFallbackPlaylist(keywords: string[], personality: MusicPersonal
     }
   }
 
-  return fallbackSongs.slice(0, 20)
+  // Entferne Duplikate und limitiere auf 20
+  const uniqueSongs = fallbackSongs.filter(
+    (song, index, self) => index === self.findIndex((s) => s.title === song.title && s.artist === song.artist),
+  )
+
+  return uniqueSongs.slice(0, 20)
 }
 
 // Funktion zur Analyse von Keywords für bessere Playlist-Generierung
