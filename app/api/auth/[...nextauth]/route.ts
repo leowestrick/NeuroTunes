@@ -25,26 +25,15 @@ export const authOptions: NextAuthOptions = {
       authorization: {
         params: {
           scope: scopes,
-          show_dialog: "true", // Erzwingt Login-Dialog auch bei bereits angemeldeten Nutzern
         },
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, account, user, trigger }) {
-      console.log("JWT Callback:", {
-        trigger,
-        hasAccount: !!account,
-        hasUser: !!user,
-        hasToken: !!token,
-        tokenError: token.error,
-        expiresAt: token.expiresAt,
-        currentTime: Math.floor(Date.now() / 1000),
-      })
-
-      // Initiales Token mit Account-Informationen
+    async jwt({ token, account, user }) {
+      // Initial sign in
       if (account && user) {
-        console.log("Neues Token erstellt für Benutzer:", user.name)
+        console.log("JWT: Initial sign in", { userId: user.id, accountProvider: account.provider })
         return {
           ...token,
           accessToken: account.access_token,
@@ -56,78 +45,24 @@ export const authOptions: NextAuthOptions = {
             email: user.email,
             image: user.image,
           },
-          error: undefined, // Reset error
         }
       }
 
-      // Prüfe ob Token noch gültig ist (mit 5 Minuten Puffer)
-      const tokenExpiresAt = token.expiresAt as number
+      // Return previous token if the access token has not expired yet
       const now = Math.floor(Date.now() / 1000)
-      const bufferTime = 5 * 60 // 5 Minuten
+      const tokenExpiresAt = token.expiresAt as number
 
-      if (tokenExpiresAt && now < tokenExpiresAt - bufferTime) {
-        console.log("Token ist noch gültig")
+      if (tokenExpiresAt && now < tokenExpiresAt - 300) {
+        // 5 minutes buffer
+        console.log("JWT: Token still valid")
         return token
       }
 
-      console.log("Token ist abgelaufen oder läuft bald ab, versuche zu erneuern...")
-
-      // Token ist abgelaufen, versuche zu erneuern
-      if (!token.refreshToken) {
-        console.error("Kein Refresh Token verfügbar")
-        return {
-          ...token,
-          error: "NoRefreshToken",
-        }
-      }
-
-      try {
-        const response = await fetch("https://accounts.spotify.com/api/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${Buffer.from(
-              `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`,
-            ).toString("base64")}`,
-          },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: token.refreshToken as string,
-          }),
-        })
-
-        if (!response.ok) {
-          const errorData = await response.text()
-          console.error("Token-Refresh fehlgeschlagen:", response.status, errorData)
-          throw new Error(`Token refresh failed: ${response.status}`)
-        }
-
-        const data = await response.json()
-        console.log("Token erfolgreich erneuert")
-
-        return {
-          ...token,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token ?? token.refreshToken, // Behalte alten refresh token falls keiner zurückgegeben wird
-          expiresAt: Math.floor(Date.now() / 1000) + data.expires_in,
-          error: undefined, // Reset error
-        }
-      } catch (error) {
-        console.error("Error refreshing token:", error)
-        return {
-          ...token,
-          error: "RefreshTokenError",
-        }
-      }
+      // Access token has expired, try to update it
+      console.log("JWT: Token expired, refreshing...")
+      return await refreshAccessToken(token)
     },
     async session({ session, token }) {
-      console.log("Session Callback:", {
-        hasSession: !!session,
-        hasToken: !!token,
-        tokenError: token.error,
-        userId: token.user?.id,
-      })
-
       if (token) {
         session.accessToken = token.accessToken as string
         session.refreshToken = token.refreshToken as string
@@ -136,23 +71,9 @@ export const authOptions: NextAuthOptions = {
         session.user = {
           ...session.user,
           id: token.user?.id as string,
-          name: token.user?.name as string,
-          email: token.user?.email as string,
-          image: token.user?.image as string,
         }
       }
-
       return session
-    },
-    async redirect({ url, baseUrl }) {
-      console.log("Redirect Callback:", { url, baseUrl })
-
-      // Erlaube Redirects zu relativen URLs oder URLs auf derselben Domain
-      if (url.startsWith("/")) return `${baseUrl}${url}`
-      if (new URL(url).origin === baseUrl) return url
-
-      // Standard-Redirect nach erfolgreichem Login
-      return `${baseUrl}/dashboard`
     },
   },
   pages: {
@@ -161,49 +82,52 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 Tage
-    updateAge: 24 * 60 * 60, // 24 Stunden
-  },
-  cookies: {
-    sessionToken: {
-      name: `next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-        maxAge: 30 * 24 * 60 * 60, // 30 Tage
-      },
-    },
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
-  events: {
-    async signIn({ user, account, profile }) {
-      console.log("SignIn Event:", {
-        userId: user.id,
-        userName: user.name,
-        accountProvider: account?.provider,
-      })
-    },
-    async signOut({ session, token }) {
-      console.log("SignOut Event:", {
-        userId: token?.user?.id,
-      })
-    },
-    async session({ session, token }) {
-      // Nur bei Debug-Modus loggen
-      if (process.env.NODE_ENV === "development") {
-        console.log("Session Event:", {
-          userId: session.user?.id,
-          hasAccessToken: !!session.accessToken,
-          error: session.error,
-        })
-      }
-    },
-  },
+}
+
+async function refreshAccessToken(token: any) {
+  try {
+    const url = "https://accounts.spotify.com/api/token"
+
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`,
+        ).toString("base64")}`,
+      },
+      method: "POST",
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: token.refreshToken,
+      }),
+    })
+
+    const refreshedTokens = await response.json()
+
+    if (!response.ok) {
+      console.error("Token refresh failed:", refreshedTokens)
+      throw refreshedTokens
+    }
+
+    console.log("JWT: Token refreshed successfully")
+    return {
+      ...token,
+      accessToken: refreshedTokens.access_token,
+      expiresAt: Math.floor(Date.now() / 1000) + refreshedTokens.expires_in,
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+    }
+  } catch (error) {
+    console.error("Error refreshing access token:", error)
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    }
+  }
 }
 
 const handler = NextAuth(authOptions)
-
 export { handler as GET, handler as POST }

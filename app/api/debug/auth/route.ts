@@ -1,21 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { getToken } from "next-auth/jwt"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
 
     const debugInfo = {
       timestamp: new Date().toISOString(),
       environment: {
         nodeEnv: process.env.NODE_ENV,
         nextauthUrl: process.env.NEXTAUTH_URL,
-        hasSpotifyClientId: !!process.env.SPOTIFY_CLIENT_ID,
-        hasSpotifyClientSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
-        hasNextauthSecret: !!process.env.NEXTAUTH_SECRET,
+        nextauthSecret: !!process.env.NEXTAUTH_SECRET,
+        spotifyClientId: !!process.env.SPOTIFY_CLIENT_ID,
+        spotifyClientSecret: !!process.env.SPOTIFY_CLIENT_SECRET,
+        spotifyClientIdValue: process.env.SPOTIFY_CLIENT_ID?.substring(0, 8) + "...",
       },
       session: {
         exists: !!session,
@@ -32,18 +31,10 @@ export async function GET(req: NextRequest) {
             }
           : null,
       },
-      token: {
-        exists: !!token,
-        hasAccessToken: !!token?.accessToken,
-        hasRefreshToken: !!token?.refreshToken,
-        hasError: !!token?.error,
-        error: token?.error,
-        expiresAt: token?.expiresAt,
-        isExpired: token?.expiresAt ? Date.now() > (token.expiresAt as number) * 1000 : null,
-      },
-      cookies: {
-        sessionToken: req.cookies.get("next-auth.session-token")?.value ? "exists" : "missing",
-        csrfToken: req.cookies.get("next-auth.csrf-token")?.value ? "exists" : "missing",
+      urls: {
+        baseUrl: process.env.NEXTAUTH_URL,
+        callbackUrl: `${process.env.NEXTAUTH_URL}/api/auth/callback/spotify`,
+        signInUrl: `${process.env.NEXTAUTH_URL}/api/auth/signin/spotify`,
       },
     }
 
@@ -52,8 +43,8 @@ export async function GET(req: NextRequest) {
     console.error("Debug Auth Error:", error)
     return NextResponse.json(
       {
-        error: "Fehler beim Abrufen der Auth-Debug-Informationen",
-        details: error instanceof Error ? error.message : "Unbekannter Fehler",
+        error: "Debug error",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 },
     )
