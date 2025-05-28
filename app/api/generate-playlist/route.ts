@@ -31,21 +31,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Authentifizierungsfehler: ${session.error}` }, { status: 401 })
     }
 
-    const { keywords } = await req.json()
+    const { keywords, usePersonalization = true } = await req.json()
 
     if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
       return NextResponse.json({ error: "Keywords sind erforderlich" }, { status: 400 })
     }
 
-    console.log("Generiere personalisierte Playlist für Keywords:", keywords)
+    console.log("Generiere Playlist für Keywords:", keywords)
+    console.log("Personalisierung aktiviert:", usePersonalization)
     console.log("Access Token verfügbar:", session.accessToken.substring(0, 20) + "...")
 
     // Analysiere Keywords für bessere Playlist-Generierung
     const analysis = analyzeKeywords(keywords)
     console.log("Keyword-Analyse:", analysis)
 
-    // KI-basierte Playlist-Generierung mit Persönlichkeitsanalyse
-    const result = await generatePlaylist(keywords, session.accessToken)
+    // KI-basierte Playlist-Generierung mit optionaler Persönlichkeitsanalyse
+    const result = await generatePlaylist(keywords, session.accessToken, usePersonalization)
     const { tracks, personality } = result
 
     if (!tracks || tracks.length === 0) {
@@ -55,11 +56,13 @@ export async function POST(req: NextRequest) {
     // Erstelle eine aussagekräftige Playlist-Beschreibung
     let description = `🎵 Generiert mit NeuroTunes & Google Gemini basierend auf: ${keywords.join(", ")}`
 
-    if (personality) {
+    if (usePersonalization && personality) {
       description += ` | Persönlichkeit: ${personality.dominantMood} (${personality.energyLevel}% Energie)`
       if (personality.topGenres.length > 0) {
         description += ` | Genres: ${personality.topGenres.slice(0, 3).join(", ")}`
       }
+    } else if (!usePersonalization) {
+      description += ` | Standard-Modus`
     }
 
     // Playlist in Spotify erstellen
@@ -73,7 +76,7 @@ export async function POST(req: NextRequest) {
       await addTracksToPlaylist(session.accessToken, playlist.id, trackUris)
     }
 
-    console.log(`Personalisierte Playlist "${playlistName}" erfolgreich erstellt mit ${trackUris.length} Tracks`)
+    console.log(`Playlist "${playlistName}" erfolgreich erstellt mit ${trackUris.length} Tracks`)
 
     return NextResponse.json({
       success: true,
@@ -84,11 +87,12 @@ export async function POST(req: NextRequest) {
         analysis,
         personality,
         trackCount: trackUris.length,
-        personalized: !!personality,
+        personalized: usePersonalization && !!personality,
+        mode: usePersonalization ? "personalized" : "standard",
       },
     })
   } catch (error) {
-    console.error("Fehler bei der personalisierten Playlist-Generierung:", error)
+    console.error("Fehler bei der Playlist-Generierung:", error)
 
     // Detailliertere Fehlermeldungen
     let errorMessage = "Fehler bei der Playlist-Generierung"

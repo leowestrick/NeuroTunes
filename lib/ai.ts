@@ -1,7 +1,7 @@
 import { searchTracks } from "./spotify"
 import { generateText } from "ai"
 import { google } from "@ai-sdk/google"
-import { analyzeMusicPersonality, type MusicPersonality } from "./music-personality"
+import { analyzeMusicPersonality, generatePersonalityPrompt, type MusicPersonality } from "./music-personality"
 
 // Debug: Überprüfe API-Schlüssel beim Import
 console.log("Google AI API Key Status:", {
@@ -10,30 +10,38 @@ console.log("Google AI API Key Status:", {
   prefix: process.env.GOOGLE_GENERATIVE_AI_API_KEY?.substring(0, 10) + "..." || "not found",
 })
 
-export async function generatePlaylist(keywords: string[], accessToken: string) {
+export async function generatePlaylist(keywords: string[], accessToken: string, usePersonalization = true) {
   try {
-    console.log("Starte Playlist-Generierung mit Persönlichkeitsanalyse...")
+    console.log("Starte Playlist-Generierung...")
+    console.log("Personalisierung:", usePersonalization ? "aktiviert" : "deaktiviert")
 
-    // Analysiere die Musikpersönlichkeit des Nutzers
     let personality: MusicPersonality | null = null
     let prompt = ""
 
-    try {
-      console.log("Analysiere Musikpersönlichkeit...")
-      personality = await analyzeMusicPersonality(accessToken)
-      prompt = generatePersonalityPrompt(personality, keywords)
-      console.log("Persönlichkeitsanalyse abgeschlossen:", {
-        topGenres: personality.genres.slice(0, 3).map((g) => g.genre),
-        dominantMood: personality.moodProfile.dominantMood,
-        energyLevel: Math.round(personality.audioFeatures.energy * 100),
-        openness: Math.round(personality.discoveryProfile.openness * 100),
-      })
-    } catch (personalityError) {
-      console.warn("Persönlichkeitsanalyse fehlgeschlagen, verwende Standard-Prompt:", personalityError)
+    if (usePersonalization) {
+      // Personalisierte Playlist-Generierung
+      try {
+        console.log("Analysiere Musikpersönlichkeit...")
+        personality = await analyzeMusicPersonality(accessToken)
+        prompt = generatePersonalityPrompt(personality, keywords)
+        console.log("Persönlichkeitsanalyse abgeschlossen:", {
+          topGenres: personality.genres.slice(0, 3).map((g) => g.genre),
+          dominantMood: personality.moodProfile.dominantMood,
+          energyLevel: Math.round(personality.audioFeatures.energy * 100),
+          openness: Math.round(personality.discoveryProfile.openness * 100),
+        })
+      } catch (personalityError) {
+        console.warn("Persönlichkeitsanalyse fehlgeschlagen, verwende Standard-Prompt:", personalityError)
+        prompt = generateStandardPrompt(keywords)
+        usePersonalization = false // Fallback auf Standard-Modus
+      }
+    } else {
+      // Standard Playlist-Generierung
+      console.log("Verwende Standard-Playlist-Generierung...")
       prompt = generateStandardPrompt(keywords)
     }
 
-    // Generiere Songvorschläge mit dem personalisierten Prompt
+    // Generiere Songvorschläge mit dem entsprechenden Prompt
     console.log("Generiere Songvorschläge mit Google Gemini...")
     console.log("API Key verfügbar:", !!process.env.GOOGLE_GENERATIVE_AI_API_KEY)
 
@@ -47,7 +55,7 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
       const { text } = await generateText({
         model,
         prompt,
-        temperature: personality ? 0.6 : 0.7,
+        temperature: usePersonalization && personality ? 0.6 : 0.7,
         maxTokens: 1000,
       })
 
@@ -129,7 +137,7 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
 
     // Wenn nicht genug Tracks gefunden wurden, führe eine personalisierte Suche durch
     if (tracks.length < 10) {
-      console.log("Nicht genug Tracks gefunden, führe personalisierte Suche durch...")
+      console.log("Nicht genug Tracks gefunden, führe zusätzliche Suche durch...")
       try {
         const additionalTracks = await searchPersonalizedTracks(accessToken, keywords, personality, 20 - tracks.length)
 
@@ -143,22 +151,23 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
           }
         }
       } catch (searchError) {
-        console.warn("Personalisierte Suche fehlgeschlagen:", searchError)
+        console.warn("Zusätzliche Suche fehlgeschlagen:", searchError)
       }
     }
 
     console.log(`Playlist erstellt mit ${tracks.length} Tracks`)
     return {
       tracks,
-      personality: personality
-        ? {
-            topGenres: personality.genres.slice(0, 5).map((g) => g.genre),
-            dominantMood: personality.moodProfile.dominantMood,
-            energyLevel: Math.round(personality.audioFeatures.energy * 100),
-            valence: Math.round(personality.audioFeatures.valence * 100),
-            openness: Math.round(personality.discoveryProfile.openness * 100),
-          }
-        : null,
+      personality:
+        personality && usePersonalization
+          ? {
+              topGenres: personality.genres.slice(0, 5).map((g) => g.genre),
+              dominantMood: personality.moodProfile.dominantMood,
+              energyLevel: Math.round(personality.audioFeatures.energy * 100),
+              valence: Math.round(personality.audioFeatures.valence * 100),
+              openness: Math.round(personality.discoveryProfile.openness * 100),
+            }
+          : null,
     }
   } catch (error) {
     console.error("Fehler bei der Playlist-Generierung:", error)
@@ -566,68 +575,6 @@ export function analyzeKeywords(keywords: string[]) {
     genres: detectedGenres,
     keywords,
   }
-}
-
-export function generatePersonalityPrompt(personality: MusicPersonality, keywords: string[]): string {
-  const topGenres = personality.genres
-    .slice(0, 5)
-    .map((g) => g.genre)
-    .join(", ")
-  const audioProfile = personality.audioFeatures
-  const moodProfile = personality.moodProfile
-  const insights = personality.personalityInsights
-
-  return `
-Du bist ein KI-Musik-Experte, der eine hochpersonalisierte Playlist erstellt.
-
-NUTZER-KEYWORDS: ${keywords.join(", ")}
-
-NUTZER-MUSIKPERSÖNLICHKEIT:
-- Lieblings-Genres: ${topGenres}
-- Persönlichkeitstyp: ${insights.musicPersonalityType}
-- Dominante Stimmung: ${moodProfile.dominantMood}
-- Energie-Präferenz: ${(audioProfile.energy * 100).toFixed(0)}% (0=ruhig, 100=sehr energetisch)
-- Positivitäts-Level: ${(audioProfile.valence * 100).toFixed(0)}% (0=melancholisch, 100=fröhlich)
-- Tanzbarkeit: ${(audioProfile.danceability * 100).toFixed(0)}%
-- Bevorzugtes Tempo: ~${audioProfile.tempo.toFixed(0)} BPM
-- Mainstream vs. Nische: ${(personality.artistDiversity.mainstreamFactor * 100).toFixed(0)}% mainstream
-
-AUFGABE:
-Erstelle eine Playlist von 20 Songs, die SOWOHL zu den Keywords "${keywords.join(", ")}" ALS AUCH zur Musikpersönlichkeit passt.
-
-PERSONALISIERUNGS-REGELN:
-1. GENRE-MIX: 70% aus bevorzugten Genres (${topGenres}), 30% passende andere Genres
-2. ENERGIE-MATCHING: Orientiere dich am Energie-Level von ${(audioProfile.energy * 100).toFixed(0)}%
-3. STIMMUNGS-ALIGNMENT: Berücksichtige die dominante Stimmung "${moodProfile.dominantMood}"
-4. TEMPO-ANPASSUNG: Bevorzuge Songs um ${audioProfile.tempo.toFixed(0)} BPM (±20 BPM)
-5. MAINSTREAM-BALANCE: ${personality.artistDiversity.mainstreamFactor > 0.6 ? "Fokussiere auf populäre, bekannte Songs" : "Mische bekannte und weniger bekannte Songs"}
-
-KEYWORD-INTERPRETATION für "${keywords.join(", ")}":
-- Analysiere die emotionale Bedeutung der Keywords
-- Bestimme die gewünschte Aktivität/Situation
-- Wähle Songs die thematisch UND zur Persönlichkeit passen
-
-SONG-AUSWAHL:
-- Jeder Song muss zu den Keywords UND zur Persönlichkeit passen
-- Verwende exakte, bekannte Song- und Künstlernamen
-- Achte auf gute Übergänge zwischen den Songs
-- Erstelle eine emotionale Reise durch die Playlist
-
-BEISPIEL-LOGIK:
-Wenn Keywords="Party, Sommer" + Nutzer mag Pop/Dance + hohe Energie:
-→ "Levitating" (Dua Lipa), "Good 4 U" (Olivia Rodrigo), "Blinding Lights" (The Weeknd)
-
-Wenn Keywords="entspannt, Abend" + Nutzer mag Indie/Alternative + niedrige Energie:
-→ "Holocene" (Bon Iver), "Mad World" (Gary Jules), "The Night We Met" (Lord Huron)
-
-FORMAT: Gib NUR das JSON-Array zurück:
-[
-  {"title": "Exakter Song Titel", "artist": "Exakter Künstler Name"},
-  {"title": "Exakter Song Titel", "artist": "Exakter Künstler Name"}
-]
-
-WICHTIG: Keine Erklärungen, nur das JSON-Array!
-`
 }
 
 // Exportiere auch die Persönlichkeitsanalyse für andere Komponenten
