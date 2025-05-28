@@ -1,7 +1,7 @@
 import { searchTracks } from "./spotify"
 import { generateText } from "ai"
 import { google } from "@ai-sdk/google"
-import { analyzeMusicPersonality, generatePersonalityPrompt, type MusicPersonality } from "./music-personality"
+import { analyzeMusicPersonality, type MusicPersonality } from "./music-personality"
 
 // Debug: Überprüfe API-Schlüssel beim Import
 console.log("Google AI API Key Status:", {
@@ -326,30 +326,57 @@ function levenshteinDistance(str1: string, str2: string): number {
 
 function generateStandardPrompt(keywords: string[]): string {
   return `
-Du bist ein Musik-Experte und Playlist-Kurator. Erstelle eine Playlist basierend auf den folgenden Keywords: ${keywords.join(", ")}.
+Du bist ein professioneller Musik-Kurator und DJ mit jahrzehntelanger Erfahrung. Erstelle eine perfekte Playlist basierend auf diesen Keywords: ${keywords.join(", ")}.
 
-Analysiere die Keywords und erstelle eine Liste von 20 Songs, die perfekt zu der gewünschten Stimmung und dem Musikstil passen.
+WICHTIGE REGELN:
+1. Die Songs MÜSSEN thematisch und emotional zu den Keywords passen
+2. Wähle nur Songs aus, die definitiv auf Spotify verfügbar sind
+3. Bevorzuge bekannte, populäre Songs die Menschen kennen
+4. Achte auf eine gute Mischung aus verschiedenen Jahrzehnten
+5. Die Songs sollen eine zusammenhängende emotionale Reise ergeben
 
-Berücksichtige dabei:
-- Die emotionale Stimmung der Keywords
-- Passende Musikgenres
-- Bekannte und beliebte Songs, die auf Spotify verfügbar sind
-- Eine gute Mischung aus verschiedenen Künstlern
-- Zeitlose Klassiker und moderne Hits
+KEYWORD-ANALYSE:
+Analysiere die Keywords "${keywords.join(", ")}" und bestimme:
+- Gewünschte Stimmung (fröhlich, traurig, energetisch, entspannt, etc.)
+- Passende Genres (Pop, Rock, Hip-Hop, Electronic, Indie, etc.)
+- Aktivität/Kontext (Party, Workout, Entspannung, Arbeit, etc.)
+- Tempo und Energie-Level
 
-WICHTIG: 
-- Gib NUR ein sauberes JSON-Array zurück
-- Keine zusätzlichen Kommentare oder Erklärungen
-- Keine Kommentare in den Künstlernamen
-- Format: [{"title": "Song Name", "artist": "Artist Name"}, ...]
+SONG-AUSWAHL STRATEGIE:
+- Wenn "Party" → Upbeat Dance-Hits, bekannte Partysongs
+- Wenn "entspannt/chill" → Ruhige, melodische Songs
+- Wenn "Workout/Sport" → Energetische, motivierende Songs
+- Wenn "traurig/melancholisch" → Emotionale Balladen
+- Wenn "Sommer" → Sommerhits, gute Laune Songs
+- Wenn "90er/2000er" → Hits aus dieser Zeit
+- Wenn Genre genannt → Songs aus diesem Genre
 
-Beispiel:
+BEISPIELE FÜR GUTE ZUORDNUNGEN:
+- "Party, Dance" → "Uptown Funk" (Bruno Mars), "I Gotta Feeling" (Black Eyed Peas)
+- "entspannt, chill" → "Stay" (Rihanna), "Skinny Love" (Bon Iver)
+- "Workout, energetisch" → "Stronger" (Kanye West), "Till I Collapse" (Eminem)
+- "Sommer, gute Laune" → "Good 4 U" (Olivia Rodrigo), "Blinding Lights" (The Weeknd)
+- "traurig, emotional" → "Someone Like You" (Adele), "Mad World" (Gary Jules)
+
+ERSTELLE JETZT eine Liste von 20 Songs die PERFEKT zu "${keywords.join(", ")}" passen.
+
+Jeder Song muss:
+- Thematisch zu den Keywords passen
+- Emotional zur gewünschten Stimmung passen  
+- Ein bekannter, auf Spotify verfügbarer Song sein
+- Den richtigen Energie-Level haben
+
+FORMAT: Gib NUR ein sauberes JSON-Array zurück:
 [
-  {"title": "Blinding Lights", "artist": "The Weeknd"},
-  {"title": "Levitating", "artist": "Dua Lipa"}
+  {"title": "Exakter Song Titel", "artist": "Exakter Künstler Name"},
+  {"title": "Exakter Song Titel", "artist": "Exakter Künstler Name"}
 ]
 
-Gib NUR das JSON-Array zurück, ohne Code-Blöcke oder zusätzlichen Text.
+WICHTIG: 
+- Keine Kommentare oder Erklärungen
+- Keine zusätzlichen Felder im JSON
+- Exakte Song- und Künstlernamen verwenden
+- NUR das JSON-Array, sonst nichts
 `
 }
 
@@ -539,6 +566,68 @@ export function analyzeKeywords(keywords: string[]) {
     genres: detectedGenres,
     keywords,
   }
+}
+
+export function generatePersonalityPrompt(personality: MusicPersonality, keywords: string[]): string {
+  const topGenres = personality.genres
+    .slice(0, 5)
+    .map((g) => g.genre)
+    .join(", ")
+  const audioProfile = personality.audioFeatures
+  const moodProfile = personality.moodProfile
+  const insights = personality.personalityInsights
+
+  return `
+Du bist ein KI-Musik-Experte, der eine hochpersonalisierte Playlist erstellt.
+
+NUTZER-KEYWORDS: ${keywords.join(", ")}
+
+NUTZER-MUSIKPERSÖNLICHKEIT:
+- Lieblings-Genres: ${topGenres}
+- Persönlichkeitstyp: ${insights.musicPersonalityType}
+- Dominante Stimmung: ${moodProfile.dominantMood}
+- Energie-Präferenz: ${(audioProfile.energy * 100).toFixed(0)}% (0=ruhig, 100=sehr energetisch)
+- Positivitäts-Level: ${(audioProfile.valence * 100).toFixed(0)}% (0=melancholisch, 100=fröhlich)
+- Tanzbarkeit: ${(audioProfile.danceability * 100).toFixed(0)}%
+- Bevorzugtes Tempo: ~${audioProfile.tempo.toFixed(0)} BPM
+- Mainstream vs. Nische: ${(personality.artistDiversity.mainstreamFactor * 100).toFixed(0)}% mainstream
+
+AUFGABE:
+Erstelle eine Playlist von 20 Songs, die SOWOHL zu den Keywords "${keywords.join(", ")}" ALS AUCH zur Musikpersönlichkeit passt.
+
+PERSONALISIERUNGS-REGELN:
+1. GENRE-MIX: 70% aus bevorzugten Genres (${topGenres}), 30% passende andere Genres
+2. ENERGIE-MATCHING: Orientiere dich am Energie-Level von ${(audioProfile.energy * 100).toFixed(0)}%
+3. STIMMUNGS-ALIGNMENT: Berücksichtige die dominante Stimmung "${moodProfile.dominantMood}"
+4. TEMPO-ANPASSUNG: Bevorzuge Songs um ${audioProfile.tempo.toFixed(0)} BPM (±20 BPM)
+5. MAINSTREAM-BALANCE: ${personality.artistDiversity.mainstreamFactor > 0.6 ? "Fokussiere auf populäre, bekannte Songs" : "Mische bekannte und weniger bekannte Songs"}
+
+KEYWORD-INTERPRETATION für "${keywords.join(", ")}":
+- Analysiere die emotionale Bedeutung der Keywords
+- Bestimme die gewünschte Aktivität/Situation
+- Wähle Songs die thematisch UND zur Persönlichkeit passen
+
+SONG-AUSWAHL:
+- Jeder Song muss zu den Keywords UND zur Persönlichkeit passen
+- Verwende exakte, bekannte Song- und Künstlernamen
+- Achte auf gute Übergänge zwischen den Songs
+- Erstelle eine emotionale Reise durch die Playlist
+
+BEISPIEL-LOGIK:
+Wenn Keywords="Party, Sommer" + Nutzer mag Pop/Dance + hohe Energie:
+→ "Levitating" (Dua Lipa), "Good 4 U" (Olivia Rodrigo), "Blinding Lights" (The Weeknd)
+
+Wenn Keywords="entspannt, Abend" + Nutzer mag Indie/Alternative + niedrige Energie:
+→ "Holocene" (Bon Iver), "Mad World" (Gary Jules), "The Night We Met" (Lord Huron)
+
+FORMAT: Gib NUR das JSON-Array zurück:
+[
+  {"title": "Exakter Song Titel", "artist": "Exakter Künstler Name"},
+  {"title": "Exakter Song Titel", "artist": "Exakter Künstler Name"}
+]
+
+WICHTIG: Keine Erklärungen, nur das JSON-Array!
+`
 }
 
 // Exportiere auch die Persönlichkeitsanalyse für andere Komponenten
