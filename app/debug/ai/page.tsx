@@ -45,11 +45,6 @@ export default function AIDebugPage() {
           </CardContent>
         </Card>
       </div>
-    \
-            <p>Teste Google AI API...</p>
-          </CardContent>
-        </Card>
-      </div>
     )
   }
 
