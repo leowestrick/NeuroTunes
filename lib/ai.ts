@@ -1,24 +1,27 @@
-// Überprüfe ob Google AI API Key verfügbar ist
-const hasGoogleAI = !!process.env.GOOGLE_GENERATIVE_AI_API_KEY
-
-if (!hasGoogleAI) {
-  console.warn("Google Generative AI API key is missing. Falling back to keyword-based playlist generation.")
-}
 import { searchTracks } from "./spotify"
 import { generateText } from "ai"
 import { google } from "@ai-sdk/google"
 import { analyzeMusicPersonality, generatePersonalityPrompt, type MusicPersonality } from "./music-personality"
 
+// Debug: Überprüfe API-Schlüssel beim Import
+console.log("Google AI API Key Status:", {
+  exists: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  length: process.env.GOOGLE_GENERATIVE_AI_API_KEY?.length || 0,
+  prefix: process.env.GOOGLE_GENERATIVE_AI_API_KEY?.substring(0, 10) + "..." || "not found",
+})
+
 export async function generatePlaylist(keywords: string[], accessToken: string) {
   try {
-    console.log("Starte Playlist-Generierung...")
+    console.log("Starte Playlist-Generierung mit Persönlichkeitsanalyse...")
 
-    // Analysiere die Musikpersönlichkeit des Nutzers (falls möglich)
+    // Analysiere die Musikpersönlichkeit des Nutzers
     let personality: MusicPersonality | null = null
+    let prompt = ""
 
     try {
       console.log("Analysiere Musikpersönlichkeit...")
       personality = await analyzeMusicPersonality(accessToken)
+      prompt = generatePersonalityPrompt(personality, keywords)
       console.log("Persönlichkeitsanalyse abgeschlossen:", {
         topGenres: personality.genres.slice(0, 3).map((g) => g.genre),
         dominantMood: personality.moodProfile.dominantMood,
@@ -26,37 +29,36 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
         openness: Math.round(personality.discoveryProfile.openness * 100),
       })
     } catch (personalityError) {
-      console.warn("Persönlichkeitsanalyse fehlgeschlagen:", personalityError)
+      console.warn("Persönlichkeitsanalyse fehlgeschlagen, verwende Standard-Prompt:", personalityError)
+      prompt = generateStandardPrompt(keywords)
     }
 
+    // Generiere Songvorschläge mit dem personalisierten Prompt
+    console.log("Generiere Songvorschläge mit Google Gemini...")
+    console.log("API Key verfügbar:", !!process.env.GOOGLE_GENERATIVE_AI_API_KEY)
+
     let songSuggestions
+    try {
+      // Explizit den API-Schlüssel übergeben
+      const model = google("gemini-1.5-flash", {
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      })
 
-    // Versuche KI-Generierung nur wenn API-Schlüssel verfügbar ist
-    if (hasGoogleAI) {
-      try {
-        console.log("Generiere Songvorschläge mit Google Gemini...")
+      const { text } = await generateText({
+        model,
+        prompt,
+        temperature: personality ? 0.6 : 0.7,
+        maxTokens: 1000,
+      })
 
-        const prompt = personality ? generatePersonalityPrompt(personality, keywords) : generateStandardPrompt(keywords)
-
-        const { text } = await generateText({
-          model: google("gemini-1.5-flash"),
-          prompt,
-          temperature: personality ? 0.6 : 0.7,
-          maxTokens: 1000,
-        })
-
-        console.log("Gemini Antwort erhalten")
-        songSuggestions = parseGeminiResponse(text)
-      } catch (aiError) {
-        console.warn("KI-Generierung fehlgeschlagen, verwende Fallback:", aiError)
-        songSuggestions = generateFallbackPlaylist(keywords, personality)
-      }
-    } else {
-      console.log("Verwende Fallback-Playlist-Generierung (kein Google AI API Key)")
+      console.log("Gemini Antwort erhalten")
+      songSuggestions = parseGeminiResponse(text)
+    } catch (aiError) {
+      console.error("KI-Generierung fehlgeschlagen:", aiError)
+      console.log("Verwende Fallback-Playlist-Generierung")
       songSuggestions = generateFallbackPlaylist(keywords, personality)
     }
 
-    // Rest der Funktion bleibt gleich...
     // Validiere die Struktur der Antwort
     if (!Array.isArray(songSuggestions)) {
       console.warn("Song-Vorschläge sind kein Array, verwende Fallback")
@@ -95,8 +97,9 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
 
         for (const query of searchQueries) {
           try {
-            searchResults = await searchTracks(accessToken, query, 3)
+            searchResults = await searchTracks(accessToken, query, 3) // Mehr Ergebnisse für bessere Auswahl
             if (searchResults && searchResults.length > 0) {
+              // Wähle das beste Ergebnis basierend auf Übereinstimmung
               const bestMatch = findBestMatch(cleanTitle, cleanArtist, searchResults)
               if (bestMatch) {
                 searchResults = [bestMatch]

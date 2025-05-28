@@ -205,6 +205,12 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
 }
 
 async function generatePersonalityInsights(analysisData: any): Promise<PersonalityInsights> {
+  // Debug: Überprüfe API-Schlüssel
+  console.log("Personality Insights - API Key Status:", {
+    exists: !!process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    length: process.env.GOOGLE_GENERATIVE_AI_API_KEY?.length || 0,
+  })
+
   // Überprüfe ob Google AI verfügbar ist
   if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
     console.log("Google AI API Key nicht verfügbar, verwende Fallback-Persönlichkeitsanalyse")
@@ -287,8 +293,13 @@ Formatiere die Antwort als JSON:
 Gib NUR das JSON zurück, ohne zusätzlichen Text.
 `
 
+    // Explizit den API-Schlüssel übergeben
+    const model = google("gemini-1.5-flash", {
+      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    })
+
     const { text } = await generateText({
-      model: google("gemini-1.5-flash"),
+      model,
       prompt,
       temperature: 0.7,
       maxTokens: 800,
