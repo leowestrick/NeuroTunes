@@ -67,6 +67,5 @@ export function SpotifyLoginButton({
         </>
       )}
     </Button>
-  \
-}
+  )
 }
