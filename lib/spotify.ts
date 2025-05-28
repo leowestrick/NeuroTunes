@@ -151,18 +151,45 @@ export async function getRecentlyPlayed(accessToken: string, limit = 50) {
 }
 
 export async function getAudioFeatures(accessToken: string, trackIds: string[]) {
-  const ids = trackIds.join(",")
-  const response = await fetch(`https://api.spotify.com/v1/audio-features?ids=${ids}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  })
-
-  if (!response.ok) {
-    throw new Error("Audio-Features konnten nicht abgerufen werden")
+  if (!trackIds || trackIds.length === 0) {
+    console.warn("Keine Track-IDs für Audio-Features bereitgestellt")
+    return { audio_features: [] }
   }
 
-  return response.json()
+  // Filtere ungültige IDs und limitiere auf 100 (Spotify API Limit)
+  const validTrackIds = trackIds.filter((id) => id && typeof id === "string").slice(0, 100)
+
+  if (validTrackIds.length === 0) {
+    console.warn("Keine gültigen Track-IDs für Audio-Features")
+    return { audio_features: [] }
+  }
+
+  const ids = validTrackIds.join(",")
+
+  try {
+    const response = await fetch(`https://api.spotify.com/v1/audio-features?ids=${ids}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`Audio-Features API Fehler (${response.status}):`, errorText)
+
+      // Fallback: Leere Audio-Features zurückgeben statt Fehler zu werfen
+      return { audio_features: [] }
+    }
+
+    const data = await response.json()
+    console.log(`Audio-Features für ${validTrackIds.length} Tracks abgerufen`)
+
+    return data
+  } catch (error) {
+    console.error("Netzwerkfehler beim Abrufen der Audio-Features:", error)
+    // Fallback: Leere Audio-Features zurückgeben
+    return { audio_features: [] }
+  }
 }
 
 export async function getSavedTracks(accessToken: string, limit = 50) {

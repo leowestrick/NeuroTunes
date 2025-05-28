@@ -83,7 +83,46 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
   try {
     console.log("Sammle Spotify-Daten für Persönlichkeitsanalyse...")
 
-    // Sammle alle relevanten Daten parallel
+    // Sammle alle relevanten Daten parallel mit Fehlerbehandlung
+    const dataPromises = [
+      getTopArtists(accessToken, "short_term", 50).catch((e) => {
+        console.warn("Short term artists failed:", e)
+        return { items: [] }
+      }),
+      getTopArtists(accessToken, "medium_term", 50).catch((e) => {
+        console.warn("Medium term artists failed:", e)
+        return { items: [] }
+      }),
+      getTopArtists(accessToken, "long_term", 50).catch((e) => {
+        console.warn("Long term artists failed:", e)
+        return { items: [] }
+      }),
+      getTopTracks(accessToken, "short_term", 50).catch((e) => {
+        console.warn("Short term tracks failed:", e)
+        return { items: [] }
+      }),
+      getTopTracks(accessToken, "medium_term", 50).catch((e) => {
+        console.warn("Medium term tracks failed:", e)
+        return { items: [] }
+      }),
+      getTopTracks(accessToken, "long_term", 50).catch((e) => {
+        console.warn("Long term tracks failed:", e)
+        return { items: [] }
+      }),
+      getRecentlyPlayed(accessToken, 50).catch((e) => {
+        console.warn("Recently played failed:", e)
+        return { items: [] }
+      }),
+      getSavedTracks(accessToken, 50).catch((e) => {
+        console.warn("Saved tracks failed:", e)
+        return { items: [] }
+      }),
+      getFollowedArtists(accessToken, 50).catch((e) => {
+        console.warn("Followed artists failed:", e)
+        return { artists: { items: [] } }
+      }),
+    ]
+
     const [
       topArtistsShort,
       topArtistsMedium,
@@ -94,41 +133,39 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
       recentlyPlayed,
       savedTracks,
       followedArtists,
-    ] = await Promise.all([
-      getTopArtists(accessToken, "short_term", 50),
-      getTopArtists(accessToken, "medium_term", 50),
-      getTopArtists(accessToken, "long_term", 50),
-      getTopTracks(accessToken, "short_term", 50),
-      getTopTracks(accessToken, "medium_term", 50),
-      getTopTracks(accessToken, "long_term", 50),
-      getRecentlyPlayed(accessToken, 50),
-      getSavedTracks(accessToken, 50),
-      getFollowedArtists(accessToken, 50),
-    ])
+    ] = await Promise.all(dataPromises)
 
     console.log("Analysiere Audio-Features...")
 
-    // Sammle Track-IDs für Audio-Feature-Analyse
+    // Sammle Track-IDs für Audio-Feature-Analyse mit besserer Validierung
     const allTrackIds = [
-      ...topTracksShort.items.map((t: any) => t.id),
-      ...topTracksMedium.items.map((t: any) => t.id),
-      ...recentlyPlayed.items.map((item: any) => item.track.id),
-      ...savedTracks.items.map((item: any) => item.track.id),
+      ...(topTracksShort.items || []).map((t: any) => t?.id).filter(Boolean),
+      ...(topTracksMedium.items || []).map((t: any) => t?.id).filter(Boolean),
+      ...(recentlyPlayed.items || []).map((item: any) => item?.track?.id).filter(Boolean),
+      ...(savedTracks.items || []).map((item: any) => item?.track?.id).filter(Boolean),
     ]
-      .filter(Boolean)
+      .filter((id) => id && typeof id === "string")
       .slice(0, 100) // Limitiere auf 100 Tracks
 
-    const audioFeatures = await getAudioFeatures(accessToken, allTrackIds)
+    console.log(`Versuche Audio-Features für ${allTrackIds.length} Tracks zu laden...`)
+
+    // Audio-Features mit Fallback
+    let audioFeatures = { audio_features: [] }
+    if (allTrackIds.length > 0) {
+      audioFeatures = await getAudioFeatures(accessToken, allTrackIds)
+    }
+
+    console.log(`Audio-Features erhalten: ${audioFeatures.audio_features?.length || 0} Features`)
 
     console.log("Führe Basis-Analysen durch...")
 
-    // Analysiere verschiedene Aspekte
+    // Analysiere verschiedene Aspekte mit Fallbacks
     const genres = analyzeGenrePreferences([topArtistsShort, topArtistsMedium, topArtistsLong])
-    const audioProfile = analyzeAudioFeatures(audioFeatures.audio_features)
+    const audioProfile = analyzeAudioFeatures(audioFeatures.audio_features || [])
     const listeningPatterns = analyzeListeningPatterns(recentlyPlayed, topTracksShort, topTracksMedium)
     const artistDiversity = analyzeArtistDiversity([topArtistsShort, topArtistsMedium, topArtistsLong], followedArtists)
     const temporalPrefs = analyzeTemporalPreferences(recentlyPlayed)
-    const moodProfile = analyzeMoodProfile(audioFeatures.audio_features, genres)
+    const moodProfile = analyzeMoodProfile(audioFeatures.audio_features || [], genres)
     const discoveryProfile = analyzeDiscoveryProfile(topTracksShort, topTracksMedium, topTracksLong, followedArtists)
 
     console.log("Führe KI-basierte Persönlichkeitsanalyse durch...")
@@ -143,11 +180,11 @@ export async function analyzeMusicPersonality(accessToken: string): Promise<Musi
       moodProfile,
       discoveryProfile,
       rawData: {
-        topArtistsShort: topArtistsShort.items.slice(0, 10),
-        topTracksShort: topTracksShort.items.slice(0, 10),
-        recentlyPlayedCount: recentlyPlayed.items.length,
-        savedTracksCount: savedTracks.items.length,
-        followedArtistsCount: followedArtists.artists?.items.length || 0,
+        topArtistsShort: (topArtistsShort.items || []).slice(0, 10),
+        topTracksShort: (topTracksShort.items || []).slice(0, 10),
+        recentlyPlayedCount: (recentlyPlayed.items || []).length,
+        savedTracksCount: (savedTracks.items || []).length,
+        followedArtistsCount: followedArtists.artists?.items?.length || 0,
       },
     })
 

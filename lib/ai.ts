@@ -27,6 +27,8 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
     }
 
     // Generiere Songvorschläge mit dem personalisierten Prompt
+    console.log("Generiere Songvorschläge mit Google Gemini...")
+
     const { text } = await generateText({
       model: google("gemini-1.5-flash"),
       prompt,
@@ -48,17 +50,20 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
 
     // Validiere die Struktur der Antwort
     if (!Array.isArray(songSuggestions)) {
-      throw new Error("Gemini-Antwort ist kein Array")
+      console.warn("Gemini-Antwort ist kein Array, verwende Fallback")
+      songSuggestions = generateFallbackPlaylist(keywords, personality)
     }
 
     // Suche die vorgeschlagenen Songs in Spotify
     const tracks = []
     const maxTracks = Math.min(songSuggestions.length, 20)
 
+    console.log(`Suche ${maxTracks} Songs in Spotify...`)
+
     for (let i = 0; i < maxTracks; i++) {
       const song = songSuggestions[i]
 
-      if (!song.title || !song.artist) {
+      if (!song || !song.title || !song.artist) {
         console.warn("Ungültiger Song:", song)
         continue
       }
@@ -80,14 +85,18 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
         let searchResults = null
 
         for (const query of searchQueries) {
-          searchResults = await searchTracks(accessToken, query, 3) // Mehr Ergebnisse für bessere Auswahl
-          if (searchResults && searchResults.length > 0) {
-            // Wähle das beste Ergebnis basierend auf Übereinstimmung
-            const bestMatch = findBestMatch(cleanTitle, cleanArtist, searchResults)
-            if (bestMatch) {
-              searchResults = [bestMatch]
-              break
+          try {
+            searchResults = await searchTracks(accessToken, query, 3) // Mehr Ergebnisse für bessere Auswahl
+            if (searchResults && searchResults.length > 0) {
+              // Wähle das beste Ergebnis basierend auf Übereinstimmung
+              const bestMatch = findBestMatch(cleanTitle, cleanArtist, searchResults)
+              if (bestMatch) {
+                searchResults = [bestMatch]
+                break
+              }
             }
+          } catch (searchError) {
+            console.warn(`Suche für "${query}" fehlgeschlagen:`, searchError)
           }
           await new Promise((resolve) => setTimeout(resolve, 100))
         }
@@ -110,16 +119,20 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
     // Wenn nicht genug Tracks gefunden wurden, führe eine personalisierte Suche durch
     if (tracks.length < 10) {
       console.log("Nicht genug Tracks gefunden, führe personalisierte Suche durch...")
-      const additionalTracks = await searchPersonalizedTracks(accessToken, keywords, personality, 20 - tracks.length)
+      try {
+        const additionalTracks = await searchPersonalizedTracks(accessToken, keywords, personality, 20 - tracks.length)
 
-      for (const track of additionalTracks) {
-        if (!tracks.some((t) => t.id === track.id)) {
-          tracks.push(track)
-        }
+        for (const track of additionalTracks) {
+          if (!tracks.some((t) => t.id === track.id)) {
+            tracks.push(track)
+          }
 
-        if (tracks.length >= 20) {
-          break
+          if (tracks.length >= 20) {
+            break
+          }
         }
+      } catch (searchError) {
+        console.warn("Personalisierte Suche fehlgeschlagen:", searchError)
       }
     }
 
@@ -140,12 +153,18 @@ export async function generatePlaylist(keywords: string[], accessToken: string) 
     console.error("Fehler bei der Playlist-Generierung:", error)
 
     // Fallback: Erstelle eine Playlist basierend auf Keywords ohne KI
-    const fallbackQuery = keywords.join(" ")
-    const fallbackTracks = await searchTracks(accessToken, fallbackQuery, 20)
+    try {
+      console.log("Verwende Fallback-Playlist-Generierung...")
+      const fallbackQuery = keywords.join(" ")
+      const fallbackTracks = await searchTracks(accessToken, fallbackQuery, 20)
 
-    return {
-      tracks: fallbackTracks || [],
-      personality: null,
+      return {
+        tracks: fallbackTracks || [],
+        personality: null,
+      }
+    } catch (fallbackError) {
+      console.error("Auch Fallback-Suche fehlgeschlagen:", fallbackError)
+      throw new Error("Playlist konnte nicht erstellt werden")
     }
   }
 }
