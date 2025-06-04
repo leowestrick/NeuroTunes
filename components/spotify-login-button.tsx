@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { signIn } from "next-auth/react"
 import { Button, type ButtonProps } from "@/components/ui/button"
 import { Loader2 } from "lucide-react"
@@ -10,30 +9,35 @@ import { toast } from "@/hooks/use-toast"
 
 interface SpotifyLoginButtonProps extends ButtonProps {
   children?: React.ReactNode
+  redirectTo?: string
+  forceReauth?: boolean
 }
 
-export function SpotifyLoginButton({ children, className, ...props }: SpotifyLoginButtonProps) {
+export function SpotifyLoginButton({
+  children,
+  className,
+  redirectTo = "/dashboard",
+  forceReauth = false,
+  ...props
+}: SpotifyLoginButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
 
   const handleLogin = async () => {
     try {
       setIsLoading(true)
 
-      // Direkte Weiterleitung zu Spotify ohne redirect: false
-      await signIn("spotify", {
-        callbackUrl: "/dashboard",
-      })
+      console.log("Starting Spotify login...")
 
-      // Diese Zeile wird nur erreicht, wenn die Weiterleitung fehlschlägt
-      setIsLoading(false)
-      toast({
-        title: "Fehler bei der Weiterleitung",
-        description: "Die Weiterleitung zu Spotify ist fehlgeschlagen. Bitte versuche es erneut.",
-        variant: "destructive",
+      // Use signIn with redirect: true for better compatibility
+      await signIn("spotify", {
+        callbackUrl: redirectTo,
+        redirect: true, // Let NextAuth handle the redirect
+        prompt: forceReauth ? "login" : undefined, // Force re-authentication if needed
       })
     } catch (error) {
-      console.error("Login-Fehler:", error)
+      console.error("Login error:", error)
       setIsLoading(false)
+
       toast({
         title: "Anmeldefehler",
         description: "Bei der Anmeldung ist ein Fehler aufgetreten. Bitte versuche es erneut.",
@@ -52,7 +56,7 @@ export function SpotifyLoginButton({ children, className, ...props }: SpotifyLog
       {isLoading ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Verbinde...
+          Verbinde mit Spotify...
         </>
       ) : (
         <>

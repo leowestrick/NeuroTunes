@@ -3,28 +3,41 @@ import type { NextRequest } from "next/server"
 import { getToken } from "next-auth/jwt"
 
 export async function middleware(request: NextRequest) {
-  // Prüfe, ob der Benutzer authentifiziert ist
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  })
+  const { pathname } = request.nextUrl
 
-  // Geschützte Routen definieren
-  const protectedPaths = ["/dashboard", "/playlist", "/profile", "/settings"]
-  const isProtectedPath = protectedPaths.some((path) => request.nextUrl.pathname.startsWith(path))
-
-  // Wenn es sich um eine geschützte Route handelt und kein Token vorhanden ist
-  if (isProtectedPath && !token) {
-    // Umleitung zur Startseite mit einem Hinweis
-    const url = new URL("/", request.url)
-    url.searchParams.set("message", "login-required")
-    return NextResponse.redirect(url)
+  // Skip middleware for API routes, static files, and auth pages
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/_next/") ||
+    pathname.startsWith("/auth/") ||
+    pathname === "/login" ||
+    pathname === "/debug" ||
+    pathname.includes(".")
+  ) {
+    return NextResponse.next()
   }
 
-  // Wenn der Benutzer authentifiziert ist und versucht, auf die Startseite zuzugreifen
-  if (token && request.nextUrl.pathname === "/" && !request.nextUrl.searchParams.has("message")) {
-    // Optional: Umleitung zum Dashboard für authentifizierte Benutzer
-    // return NextResponse.redirect(new URL("/dashboard", request.url))
+  // Protected routes
+  const protectedPaths = ["/dashboard", "/playlist", "/profile", "/settings"]
+  const isProtectedPath = protectedPaths.some((path) => pathname.startsWith(path))
+
+  if (isProtectedPath) {
+    try {
+      const token = await getToken({
+        req: request,
+        secret: process.env.NEXTAUTH_SECRET,
+      })
+
+      if (!token) {
+        const loginUrl = new URL("/login", request.url)
+        loginUrl.searchParams.set("callbackUrl", pathname)
+        return NextResponse.redirect(loginUrl)
+      }
+    } catch (error) {
+      console.error("Middleware error:", error)
+      const loginUrl = new URL("/login", request.url)
+      return NextResponse.redirect(loginUrl)
+    }
   }
 
   return NextResponse.next()
@@ -32,13 +45,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.png$|.*\\.jpg$|.*\\.jpeg$|.*\\.gif$|.*\\.svg$).*)",
   ],
 }

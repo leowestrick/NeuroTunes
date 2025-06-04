@@ -1,6 +1,7 @@
 import NextAuth, { type NextAuthOptions } from "next-auth"
 import SpotifyProvider from "next-auth/providers/spotify"
 
+// Erweiterte Scopes für besseren API-Zugriff
 const scopes = [
   "user-read-email",
   "user-read-private",
@@ -13,7 +14,11 @@ const scopes = [
   "streaming",
   "user-read-playback-state",
   "user-read-recently-played",
-].join(" ")
+  "user-follow-read",
+  "user-read-currently-playing",
+  "user-modify-playback-state", // Hinzugefügt für bessere Playback-Kontrolle
+  "user-read-playback-position", // Hinzugefügt für Audio-Features
+]
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -22,64 +27,44 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: scopes,
+          scope: scopes.join(" "),
+          show_dialog: true, // Zeigt immer den Spotify-Dialog an, um Berechtigungsprobleme zu vermeiden
         },
       },
     }),
   ],
   callbacks: {
     async jwt({ token, account, user }) {
-      // Initiales Token mit Account-Informationen
+      // Initial sign in
       if (account && user) {
+        console.log("JWT: Initial sign in", { userId: user.id, accountProvider: account.provider })
         return {
           ...token,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,
-          user,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+          },
         }
       }
 
-      // Token-Refresh-Logik
-      if (token.expiresAt && Date.now() < (token.expiresAt as number) * 1000) {
+      // Return previous token if the access token has not expired yet
+      const now = Math.floor(Date.now() / 1000)
+      const tokenExpiresAt = token.expiresAt as number
+
+      if (tokenExpiresAt && now < tokenExpiresAt - 300) {
+        // 5 minutes buffer
+        console.log("JWT: Token still valid")
         return token
       }
 
-      // Token ist abgelaufen, versuche zu erneuern
-      try {
-        const response = await fetch("https://accounts.spotify.com/api/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Basic ${Buffer.from(
-              `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`,
-            ).toString("base64")}`,
-          },
-          body: new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: token.refreshToken as string,
-          }),
-        })
-
-        const data = await response.json()
-
-        if (!response.ok) {
-          throw new Error("Failed to refresh token")
-        }
-
-        return {
-          ...token,
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token ?? token.refreshToken,
-          expiresAt: Math.floor(Date.now() / 1000) + data.expires_in,
-        }
-      } catch (error) {
-        console.error("Error refreshing token:", error)
-        return {
-          ...token,
-          error: "RefreshTokenError",
-        }
-      }
+      // Access token has expired, try to update it
+      console.log("JWT: Token expired, refreshing...")
+      return await refreshAccessToken(token)
     },
     async session({ session, token }) {
       if (token) {
@@ -87,22 +72,67 @@ export const authOptions: NextAuthOptions = {
         session.refreshToken = token.refreshToken as string
         session.expiresAt = token.expiresAt as number
         session.error = token.error as string
-        session.user = token.user as any
+        session.user = {
+          ...session.user,
+          id: token.user?.id as string,
+        }
       }
       return session
     },
   },
   pages: {
-    signIn: "/",
-    error: "/api/auth/error",
+    signIn: "/login",
+    error: "/auth/error",
   },
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
 }
 
-const handler = NextAuth(authOptions)
+async function refreshAccessToken(token: any) {
+  try {
+    console.log("Refreshing access token...")
+    const url = "https://accounts.spotify.com/api/token"
 
+    const response = await fetch(url, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${Buffer.from(
+          `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`,
+        ).toString("base64")}`,
+      },
+      method: "POST",
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: token.refreshToken,
+      }),
+    })
+
+    const refreshedTokens = await response.json()
+
+    if (!response.ok) {
+      console.error("Token refresh failed:", refreshedTokens)
+      throw refreshedTokens
+    }
+
+    console.log("JWT: Token refreshed successfully")
+    return {
+      ...token,
+      accessToken: refreshedTokens.access_token,
+      expiresAt: Math.floor(Date.now() / 1000) + refreshedTokens.expires_in,
+      refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
+    }
+  } catch (error) {
+    console.error("Error refreshing access token:", error)
+    return {
+      ...token,
+      error: "RefreshAccessTokenError",
+    }
+  }
+}
+
+const handler = NextAuth(authOptions)
 export { handler as GET, handler as POST }

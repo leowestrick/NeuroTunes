@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { SessionProvider } from "next-auth/react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
@@ -24,7 +23,7 @@ export const SpotifyContext = createContext<SpotifyContextType>({
 
 export function SpotifyProvider({ children }: { children: React.ReactNode }) {
   return (
-    <SessionProvider refetchInterval={5 * 60} refetchOnWindowFocus={false}>
+    <SessionProvider>
       <SpotifyProviderInner>{children}</SpotifyProviderInner>
     </SessionProvider>
   )
@@ -36,9 +35,13 @@ function SpotifyProviderInner({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    console.log("Session status:", status)
+    console.log("Session data:", session)
+
     if (session?.accessToken && !session.error) {
       fetchUserProfile(session.accessToken)
     } else if (session?.error) {
+      console.error("Session error:", session.error)
       setError(session.error)
     }
   }, [session])
@@ -46,6 +49,8 @@ function SpotifyProviderInner({ children }: { children: React.ReactNode }) {
   const fetchUserProfile = async (token: string) => {
     try {
       setError(null)
+      console.log("Fetching user profile...")
+
       const response = await fetch("https://api.spotify.com/v1/me", {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -54,13 +59,15 @@ function SpotifyProviderInner({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const userData = await response.json()
+        console.log("User profile fetched:", userData.display_name)
         setUser(userData)
       } else {
+        console.error("Failed to fetch user profile:", response.status)
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (error) {
-      console.error("Fehler beim Abrufen des Benutzerprofils:", error)
-      setError(error instanceof Error ? error.message : "Unbekannter Fehler")
+      console.error("Error fetching user profile:", error)
+      setError(error instanceof Error ? error.message : "Unknown error")
     }
   }
 
