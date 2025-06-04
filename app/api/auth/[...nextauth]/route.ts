@@ -34,7 +34,7 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, account, user }) {
+    async jwt({ token, account, user }: {token: string, account: string, user: string}) {
       // Initial sign in
       if (account && user) {
         console.log("JWT: Initial sign in", { userId: user.id, accountProvider: account.provider })
