@@ -44,7 +44,7 @@ export function MusicPersonalityCard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5 animate-pulse" />
+            <Brain className="h-5 w-5 animate-pulse text-emerald-600" />
             Deine Musikpersönlichkeit
           </CardTitle>
           <CardDescription>KI analysiert deine Hörgewohnheiten...</CardDescription>
@@ -65,7 +65,7 @@ export function MusicPersonalityCard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
+            <Brain className="h-5 w-5 text-emerald-600" />
             Deine Musikpersönlichkeit
           </CardTitle>
           <CardDescription>Entdecke deine einzigartige Musikpersönlichkeit</CardDescription>
@@ -86,7 +86,7 @@ export function MusicPersonalityCard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
+            <Brain className="h-5 w-5 text-emerald-600" />
             Deine Musikpersönlichkeit
           </CardTitle>
           <CardDescription>Entdecke deine einzigartige Musikpersönlichkeit</CardDescription>
