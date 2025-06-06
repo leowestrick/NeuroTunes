@@ -360,7 +360,7 @@ export function PlaylistGenerator() {
                 <Button
                   onClick={generatePlaylist}
                   disabled={keywords.length === 0 || isGenerating}
-                  className="w-full whitespace-break-spaces bg-emerald-600 hover:bg-emerald-700 text-white "
+                  className="w-full whitespace-break-spaces bg-emerald-600 hover:bg-emerald-700 text-white"
                   size="lg"
                 >
                   {isGenerating ? (

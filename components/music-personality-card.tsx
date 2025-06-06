@@ -156,7 +156,7 @@ export function MusicPersonalityCard() {
         {/* Top Genres */}
         <div>
           <h4 className="font-semibold mb-2 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-emerald-600"/>
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
             Deine Top-Genres
           </h4>
           <div className="flex flex-wrap gap-2">
