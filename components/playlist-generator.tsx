@@ -9,9 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Loader2, X, Lock, Sparkles, Brain, User, Zap } from "lucide-react"
+import { Loader2, X, Lock, Sparkles, Brain, User, TrendingUp } from "lucide-react"
 import { useSpotify } from "@/hooks/use-spotify"
 import { KeywordSuggestions } from "@/components/keyword-suggestions"
 import { SpotifyLoginButton } from "@/components/spotify-login-button"
@@ -25,7 +23,6 @@ export function PlaylistGenerator() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generationProgress, setGenerationProgress] = useState(0)
   const [generationStep, setGenerationStep] = useState("")
-  const [usePersonalization, setUsePersonalization] = useState(true)
 
   const handleAddKeyword = () => {
     if (inputValue.trim() && !keywords.includes(inputValue.trim())) {
@@ -74,41 +71,31 @@ export function PlaylistGenerator() {
     setGenerationProgress(0)
 
     try {
-      if (usePersonalization) {
-        // Personalisierte Playlist-Generierung
-        setGenerationStep("Sammle deine Spotify-Hördaten...")
-        setGenerationProgress(10)
-        await new Promise((resolve) => setTimeout(resolve, 800))
+      // Schritt 1: Sammle Spotify-Daten
+      setGenerationStep("Sammle deine Spotify-Hördaten...")
+      setGenerationProgress(10)
+      await new Promise((resolve) => setTimeout(resolve, 800))
 
-        setGenerationStep("Analysiere deine Musikpersönlichkeit...")
-        setGenerationProgress(25)
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Schritt 2: Analysiere Musikpersönlichkeit
+      setGenerationStep("Analysiere deine Musikpersönlichkeit...")
+      setGenerationProgress(25)
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
-        setGenerationStep("KI erstellt dein Persönlichkeitsprofil...")
-        setGenerationProgress(40)
-        await new Promise((resolve) => setTimeout(resolve, 800))
+      // Schritt 3: KI-Persönlichkeitsanalyse
+      setGenerationStep("KI erstellt dein Persönlichkeitsprofil...")
+      setGenerationProgress(40)
+      await new Promise((resolve) => setTimeout(resolve, 800))
 
-        setGenerationStep("Google Gemini generiert personalisierte Songvorschläge...")
-        setGenerationProgress(60)
-      } else {
-        // Standard Playlist-Generierung
-        setGenerationStep("Analysiere Keywords...")
-        setGenerationProgress(20)
-        await new Promise((resolve) => setTimeout(resolve, 500))
-
-        setGenerationStep("Google Gemini generiert Songvorschläge...")
-        setGenerationProgress(50)
-      }
+      // Schritt 4: Personalisierte Songvorschläge
+      setGenerationStep("Google Gemini generiert personalisierte Songvorschläge...")
+      setGenerationProgress(60)
 
       const response = await fetch("/api/generate-playlist", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          keywords,
-          usePersonalization,
-        }),
+        body: JSON.stringify({ keywords }),
       })
 
       setGenerationProgress(80)
@@ -117,12 +104,15 @@ export function PlaylistGenerator() {
       const data = await response.json()
 
       if (!response.ok) {
+        // Spezielle Behandlung für Authentifizierungsfehler
         if (response.status === 401) {
           toast({
             title: "Session abgelaufen",
             description: "Deine Spotify-Session ist abgelaufen. Bitte melde dich erneut an.",
             variant: "destructive",
           })
+          // Optional: Automatische Weiterleitung zum Login
+          // signOut({ callbackUrl: "/" })
           return
         }
 
@@ -130,26 +120,24 @@ export function PlaylistGenerator() {
       }
 
       setGenerationProgress(95)
-      setGenerationStep(usePersonalization ? "Erstelle personalisierte Playlist..." : "Erstelle Playlist...")
+      setGenerationStep("Erstelle personalisierte Playlist...")
 
       await new Promise((resolve) => setTimeout(resolve, 500))
 
       setGenerationProgress(100)
       setGenerationStep("Fertig!")
 
-      const personalityInfo =
-        data.playlist.personality && usePersonalization
-          ? ` (${data.playlist.personality.topGenres?.slice(0, 2).join(", ")} • ${data.playlist.personality.dominantMood})`
-          : ""
+      // Zeige Persönlichkeits-Insights in der Toast-Nachricht
+      const personalityInfo = data.playlist.personality
+        ? ` (${data.playlist.personality.topGenres?.slice(0, 2).join(", ")} • ${data.playlist.personality.dominantMood})`
+        : ""
 
       toast({
-        title:
-          usePersonalization && data.playlist.personalized
-            ? "Personalisierte Playlist erstellt!"
-            : "Playlist erstellt!",
+        title: data.playlist.personalized ? "Personalisierte Playlist erstellt!" : "Playlist erstellt!",
         description: `${data.playlist.trackCount} Songs wurden zu deiner Playlist hinzugefügt${personalityInfo}.`,
       })
 
+      // Kurze Pause vor der Weiterleitung
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       router.push(`/playlist/${data.playlist.id}`)
@@ -213,80 +201,31 @@ export function PlaylistGenerator() {
           </Card>
         ) : (
           <div className="space-y-6">
-            {/* Personalisierungs-Option */}
+            {/* Persönlichkeits-Info Card */}
             <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-emerald-800">
                   <User className="h-5 w-5" />
-                  Playlist-Modus
+                  Personalisierte KI-Analyse
                 </CardTitle>
                 <CardDescription className="text-emerald-700">
-                  Wähle zwischen personalisierter KI-Analyse oder Standard-Generierung
+                  NeuroTunes analysiert deine Spotify-Hörgewohnheiten, um eine einzigartige Musikpersönlichkeit zu
+                  erstellen und perfekt passende Playlists zu generieren.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center gap-2">
-                      {usePersonalization ? (
-                        <Brain className="h-5 w-5 text-emerald-600" />
-                      ) : (
-                        <Zap className="h-5 w-5 text-blue-600" />
-                      )}
-                      <div>
-                        <Label htmlFor="personalization-mode" className="text-base font-medium">
-                          {usePersonalization ? "Personalisierte KI-Analyse" : "Standard-Generierung"}
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          {usePersonalization
-                            ? "Analysiert deine Spotify-Hörgewohnheiten für perfekt passende Songs"
-                            : "Schnelle Playlist-Erstellung basierend nur auf deinen Keywords"}
-                        </p>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-emerald-600" />
+                    <span className="text-emerald-800">Top-Genres & Künstler</span>
                   </div>
-                  <Switch
-                    id="personalization-mode"
-                    checked={usePersonalization}
-                    onCheckedChange={setUsePersonalization}
-                    disabled={isGenerating}
-                  />
-                </div>
-
-                {/* Info-Boxen */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                  <div
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      usePersonalization ? "border-emerald-200 bg-emerald-50" : "border-gray-200 bg-gray-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Brain className="h-4 w-4 text-emerald-600" />
-                      <span className="font-medium text-sm">Personalisiert</span>
-                    </div>
-                    <ul className="text-xs space-y-1 text-muted-foreground">
-                      <li>• Analysiert deine Top-Genres & Künstler</li>
-                      <li>• Berücksichtigt Audio-Features</li>
-                      <li>• Erstellt Stimmungsprofil</li>
-                      <li>• Dauert 10-15 Sekunden länger</li>
-                    </ul>
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-emerald-600" />
+                    <span className="text-emerald-800">Audio-Feature-Analyse</span>
                   </div>
-
-                  <div
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      !usePersonalization ? "border-blue-200 bg-blue-50" : "border-gray-200 bg-gray-50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <Zap className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium text-sm">Standard</span>
-                    </div>
-                    <ul className="text-xs space-y-1 text-muted-foreground">
-                      <li>• Basiert nur auf Keywords</li>
-                      <li>• Schnelle Generierung</li>
-                      <li>• Allgemeine Songauswahl</li>
-                      <li>• Sofortige Ergebnisse</li>
-                    </ul>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-emerald-600" />
+                    <span className="text-emerald-800">Stimmungsprofil</span>
                   </div>
                 </div>
               </CardContent>
@@ -297,11 +236,7 @@ export function PlaylistGenerator() {
               {isGenerating && (
                 <div className="mb-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
                   <div className="flex items-center gap-2 mb-2">
-                    {usePersonalization ? (
-                      <Brain className="h-5 w-5 text-emerald-600 animate-pulse" />
-                    ) : (
-                      <Zap className="h-5 w-5 text-blue-600 animate-pulse" />
-                    )}
+                    <Brain className="h-5 w-5 text-emerald-600 animate-pulse" />
                     <span className="font-medium text-emerald-800">{generationStep}</span>
                   </div>
                   <Progress value={generationProgress} className="h-2" />
@@ -352,12 +287,12 @@ export function PlaylistGenerator() {
                   {isGenerating ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {usePersonalization ? "KI erstellt personalisierte Playlist..." : "KI erstellt Playlist..."}
+                      KI erstellt personalisierte Playlist...
                     </>
                   ) : (
                     <>
-                      {usePersonalization ? <Brain className="mr-2 h-5 w-5" /> : <Zap className="mr-2 h-5 w-5" />}
-                      {usePersonalization ? "Personalisierte Playlist generieren" : "Playlist generieren"}
+                      <Brain className="mr-2 h-5 w-5" />
+                      Personalisierte Playlist generieren
                     </>
                   )}
                 </Button>
@@ -366,8 +301,7 @@ export function PlaylistGenerator() {
               <div className="mt-4 text-center text-sm text-muted-foreground">
                 <p className="flex items-center justify-center gap-1">
                   <Sparkles className="h-4 w-4" />
-                  Powered by Google Gemini AI
-                  {usePersonalization && " & Spotify-Persönlichkeitsanalyse"}
+                  Powered by Google Gemini AI & Spotify-Persönlichkeitsanalyse
                 </p>
               </div>
             </div>

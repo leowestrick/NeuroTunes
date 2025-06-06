@@ -115,8 +115,8 @@ export function TopTracksCard() {
                     <Play className="h-4 w-4 text-white" />
                   </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{track.name}</div>
+                <div className="min-w-0 flex-1 overflow-ellipsis">
+                  <div className="font-medium truncate overflow-ellipsis">{track.name}</div>
                   <div className="text-sm text-muted-foreground truncate">
                     {track.artists.map((artist: any) => artist.name).join(", ")}
                   </div>
