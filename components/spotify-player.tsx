@@ -142,7 +142,7 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
     spotifyPlayer.addListener("player_state_changed", (state) => {
       if (state) {
         setPlayerState(state)
-        checkIfLiked(state.track_window.current_track.id)
+        checkIfLiked(state.track_window.current_track?.id)
       }
     })
 
@@ -369,7 +369,9 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
 
   const currentTrack = playerState.track_window.current_track
   const progress = playerState.duration > 0 ? (playerState.position / playerState.duration) * 100 : 0
-
+  if (!currentTrack){
+    return null
+  }
   return (
     <Card className="w-full bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
       <CardContent className="p-4">
@@ -383,8 +385,8 @@ export function SpotifyPlayer({ trackUri, trackUris, autoPlay = false }: Spotify
           {/* Album Cover */}
           <div className="relative h-16 w-16 overflow-hidden rounded-md flex-shrink-0">
             <Image
-              src={currentTrack.album.images[0]?.url || "/placeholder.svg?height=64&width=64"}
-              alt={currentTrack.album.name}
+              src={currentTrack.album?.images[0]?.url || "/placeholder.svg?height=64&width=64"}
+              alt={currentTrack.album?.name}
               fill
               className="object-cover"
             />
