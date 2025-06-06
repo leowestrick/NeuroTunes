@@ -16,6 +16,7 @@ import { useSpotify } from "@/hooks/use-spotify"
 import { KeywordSuggestions } from "@/components/keyword-suggestions"
 import { SpotifyLoginButton } from "@/components/spotify-login-button"
 import { toast } from "@/hooks/use-toast"
+import { useEffect } from 'react';
 
 export function PlaylistGenerator() {
   const router = useRouter()
@@ -26,6 +27,18 @@ export function PlaylistGenerator() {
   const [generationProgress, setGenerationProgress] = useState(0)
   const [generationStep, setGenerationStep] = useState("")
   const [usePersonalization, setUsePersonalization] = useState(true)
+  const [buttonText, setButtonText] = useState('Mit Spotify anmelden');
+
+  useEffect(() => {
+    const updateButtonText = () => {
+      setButtonText(window.innerWidth < 450 ? 'Anmelden' : 'Mit Spotify anmelden');
+    };
+
+    updateButtonText();
+    window.addEventListener('resize', updateButtonText);
+
+    return () => window.removeEventListener('resize', updateButtonText);
+  }, [])
 
   const handleAddKeyword = () => {
     if (inputValue.trim() && !keywords.includes(inputValue.trim())) {
@@ -211,7 +224,7 @@ export function PlaylistGenerator() {
             </CardHeader>
             <CardContent className="text-center">
               <SpotifyLoginButton size="lg" className="bg-[#1DB954] hover:bg-[#1ed760] text-white">
-                Mit Spotify anmelden
+                {buttonText}
               </SpotifyLoginButton>
             </CardContent>
           </Card>
@@ -230,7 +243,7 @@ export function PlaylistGenerator() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                <div className="flex items-center justify-between p-4 rounded-lg border">
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center gap-2">
                       {usePersonalization ? (
@@ -261,9 +274,7 @@ export function PlaylistGenerator() {
                 {/* Info-Boxen */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      usePersonalization ? "border-emerald-200 bg-emerald-50" : "border-gray-200 bg-gray-50"
-                    }`}
+                    className={`p-3 rounded-lg transition-all`}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Brain className="h-4 w-4 text-emerald-600" />
@@ -278,9 +289,7 @@ export function PlaylistGenerator() {
                   </div>
 
                   <div
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      !usePersonalization ? "border-blue-200 bg-blue-50" : "border-gray-200 bg-gray-50"
-                    }`}
+                    className={`p-3 rounded-lg transition-all`}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Zap className="h-4 w-4 text-blue-600" />
@@ -300,7 +309,7 @@ export function PlaylistGenerator() {
             {/* Playlist Generator */}
             <div className="bg-card rounded-xl shadow-lg p-6 border">
               {isGenerating && (
-                <div className="mb-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                <div className="mb-6 p-4 rounded-lg border border-emerald-200">
                   <div className="flex items-center gap-2 mb-2">
                     {usePersonalization ? (
                       <Brain className="h-5 w-5 text-emerald-600 animate-pulse" />
@@ -351,7 +360,7 @@ export function PlaylistGenerator() {
                 <Button
                   onClick={generatePlaylist}
                   disabled={keywords.length === 0 || isGenerating}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full whitespace-break-spaces bg-emerald-600 hover:bg-emerald-700 text-white "
                   size="lg"
                 >
                   {isGenerating ? (
