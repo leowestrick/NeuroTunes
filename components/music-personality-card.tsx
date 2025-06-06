@@ -22,10 +22,6 @@ export function MusicPersonalityCard() {
     }
   }, [accessToken])
 
-  useEffect(() => {
-    console.log('Personality: ', personality);
-  }, [personality]);
-
   const analyzePersonality = async () => {
     if (!accessToken) return
 
@@ -118,47 +114,49 @@ export function MusicPersonalityCard() {
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Persönlichkeitstyp */}
-        <div className="text-center p-4 bg-gradient-to-r from-emerald-50 to-blue-50 rounded-lg">
-          <h3 className="text-2xl font-bold text-emerald-800 mb-2">{insights.musicPersonalityType}</h3>
-          <p className="text-emerald-700">{insights.listeningBehavior}</p>
-        </div>
+        <div className="rounded-lg bg-[rgb(37,37,40)] pb-6 px-4">
+          <div className="text-center p-4">
+            <h3 className="text-2xl font-bold mb-2">{insights.musicPersonalityType}</h3>
+            <p className="text-[rgb(161,161,170)]">{insights.listeningBehavior}</p>
+          </div>
 
-        {/* Audio Features */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Energie</span>
-              <span>{Math.round(personality.audioFeatures.energy * 100)}%</span>
+          {/* Audio Features */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Energie</span>
+                <span>{Math.round(personality.audioFeatures.energy * 100)}%</span>
+              </div>
+              <Progress value={personality.audioFeatures.energy * 100} className="h-2" />
             </div>
-            <Progress value={personality.audioFeatures.energy * 100} className="h-2" />
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Positivität</span>
-              <span>{Math.round(personality.audioFeatures.valence * 100)}%</span>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Positivität</span>
+                <span>{Math.round(personality.audioFeatures.valence * 100)}%</span>
+              </div>
+              <Progress value={personality.audioFeatures.valence * 100} className="h-2" />
             </div>
-            <Progress value={personality.audioFeatures.valence * 100} className="h-2" />
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Tanzbarkeit</span>
-              <span>{Math.round(personality.audioFeatures.danceability * 100)}%</span>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Tanzbarkeit</span>
+                <span>{Math.round(personality.audioFeatures.danceability * 100)}%</span>
+              </div>
+              <Progress value={personality.audioFeatures.danceability * 100} className="h-2" />
             </div>
-            <Progress value={personality.audioFeatures.danceability * 100} className="h-2" />
-          </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Offenheit</span>
-              <span>{Math.round(personality.discoveryProfile.openness * 100)}%</span>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Offenheit</span>
+                <span>{Math.round(personality.discoveryProfile.openness * 100)}%</span>
+              </div>
+              <Progress value={personality.discoveryProfile.openness * 100} className="h-2" />
             </div>
-            <Progress value={personality.discoveryProfile.openness * 100} className="h-2" />
           </div>
         </div>
 
         {/* Top Genres */}
         <div>
           <h4 className="font-semibold mb-2 flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
             Deine Top-Genres
           </h4>
           <div className="flex flex-wrap gap-2">

@@ -36,7 +36,7 @@ export function LandingHero() {
             <Link href="#playlist-generator">Playlist erstellen</Link>
           </Button>
         ) : (
-          <SpotifyLoginButton size="lg" className="bg-[#1DB954] hover:bg-[#1ed760] text-white px-8 py-6 text-lg">
+          <SpotifyLoginButton size="lg" className="whitespace-break-spaces bg-[#1DB954] hover:bg-[#1ed760] text-white px-8 py-8 text-lg">
             Mit Spotify anmelden und loslegen
           </SpotifyLoginButton>
         )}

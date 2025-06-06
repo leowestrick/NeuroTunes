@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { useSpotify } from "@/hooks/use-spotify"
 import { Calendar, MapPin, Users, ExternalLink, Settings } from "lucide-react"
 
+var headerBannerImage = {
+  backgroundImage: 'linear-gradient(130deg,#191414 0%, #1ED760 50%, #1ED760 60%, #191414 100%)',
+  height: '128px'
+};
 export function ProfileHeader() {
   const { user } = useSpotify()
   const [imageError, setImageError] = useState(false)
@@ -28,7 +32,7 @@ export function ProfileHeader() {
 
   return (
     <Card className="overflow-hidden">
-      <div className="h-32 bg-gradient-to-r from-emerald-500 to-blue-500"></div>
+      <div className="h-32" style={ headerBannerImage }></div>
       <CardContent className="relative p-6">
         <div className="flex flex-col md:flex-row items-start md:items-end gap-6">
           {/* Profile Picture */}
@@ -61,18 +65,18 @@ export function ProfileHeader() {
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
               {user.country && (
                 <div className="flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
+                  <MapPin className="h-4 w-4 text-emerald-600" />
                   <span>{user.country}</span>
                 </div>
               )}
               {user.followers && (
                 <div className="flex items-center gap-1">
-                  <Users className="h-4 w-4" />
+                  <Users className="h-4 w-4 text-emerald-600" />
                   <span>{user.followers.total.toLocaleString()} Follower</span>
                 </div>
               )}
               <div className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
+                <Calendar className="h-4 w-4 text-emerald-600" />
                 <span>Mitglied seit {new Date().getFullYear()}</span>
               </div>
             </div>

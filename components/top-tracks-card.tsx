@@ -48,7 +48,7 @@ export function TopTracksCard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Music className="h-5 w-5" />
+            <Music className="h-5 w-5 text-emerald-600" />
             Deine Top-Songs
           </CardTitle>
           <CardDescription>Deine meistgehörten Songs</CardDescription>
@@ -76,7 +76,7 @@ export function TopTracksCard() {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Music className="h-5 w-5" />
+              <Music className="h-5 w-5 text-emerald-600" />
               Deine Top-Songs
             </CardTitle>
             <CardDescription>Deine meistgehörten Songs</CardDescription>
@@ -115,8 +115,8 @@ export function TopTracksCard() {
                     <Play className="h-4 w-4 text-white" />
                   </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{track.name}</div>
+                <div className="min-w-0 flex-1 overflow-ellipsis">
+                  <div className="font-medium truncate overflow-ellipsis">{track.name}</div>
                   <div className="text-sm text-muted-foreground truncate">
                     {track.artists.map((artist: any) => artist.name).join(", ")}
                   </div>

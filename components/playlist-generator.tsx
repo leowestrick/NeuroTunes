@@ -16,6 +16,7 @@ import { useSpotify } from "@/hooks/use-spotify"
 import { KeywordSuggestions } from "@/components/keyword-suggestions"
 import { SpotifyLoginButton } from "@/components/spotify-login-button"
 import { toast } from "@/hooks/use-toast"
+import { useEffect } from 'react';
 
 export function PlaylistGenerator() {
   const router = useRouter()
@@ -26,6 +27,18 @@ export function PlaylistGenerator() {
   const [generationProgress, setGenerationProgress] = useState(0)
   const [generationStep, setGenerationStep] = useState("")
   const [usePersonalization, setUsePersonalization] = useState(true)
+  const [buttonText, setButtonText] = useState('Mit Spotify anmelden');
+
+  useEffect(() => {
+    const updateButtonText = () => {
+      setButtonText(window.innerWidth < 450 ? 'Anmelden' : 'Mit Spotify anmelden');
+    };
+
+    updateButtonText();
+    window.addEventListener('resize', updateButtonText);
+
+    return () => window.removeEventListener('resize', updateButtonText);
+  }, [])
 
   const handleAddKeyword = () => {
     if (inputValue.trim() && !keywords.includes(inputValue.trim())) {
@@ -117,12 +130,15 @@ export function PlaylistGenerator() {
       const data = await response.json()
 
       if (!response.ok) {
+        // Spezielle Behandlung für Authentifizierungsfehler
         if (response.status === 401) {
           toast({
             title: "Session abgelaufen",
             description: "Deine Spotify-Session ist abgelaufen. Bitte melde dich erneut an.",
             variant: "destructive",
           })
+          // Optional: Automatische Weiterleitung zum Login
+          // signOut({ callbackUrl: "/" })
           return
         }
 
@@ -150,6 +166,7 @@ export function PlaylistGenerator() {
         description: `${data.playlist.trackCount} Songs wurden zu deiner Playlist hinzugefügt${personalityInfo}.`,
       })
 
+      // Kurze Pause vor der Weiterleitung
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       router.push(`/playlist/${data.playlist.id}`)
@@ -207,25 +224,26 @@ export function PlaylistGenerator() {
             </CardHeader>
             <CardContent className="text-center">
               <SpotifyLoginButton size="lg" className="bg-[#1DB954] hover:bg-[#1ed760] text-white">
-                Mit Spotify anmelden
+                {buttonText}
               </SpotifyLoginButton>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-6">
-            {/* Personalisierungs-Option */}
-            <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
+            {/* Persönlichkeits-Info Card */}
+            <Card className="bg-[rgb(28,25,23)] ">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-emerald-800">
-                  <User className="h-5 w-5" />
-                  Playlist-Modus
+                <CardTitle className="flex items-center gap-2 ">
+                  <User className="h-5 w-5 text-emerald-600" />
+                  Personalisierte KI-Analyse
                 </CardTitle>
-                <CardDescription className="text-emerald-700">
-                  Wähle zwischen personalisierter KI-Analyse oder Standard-Generierung
+                <CardDescription className="text-[rgb(161,161,170)]">
+                  NeuroTunes analysiert deine Spotify-Hörgewohnheiten, um eine einzigartige Musikpersönlichkeit zu
+                  erstellen und perfekt passende Playlists zu generieren.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                <div className="flex items-center justify-between p-4 rounded-lg border">
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center gap-2">
                       {usePersonalization ? (
@@ -256,9 +274,7 @@ export function PlaylistGenerator() {
                 {/* Info-Boxen */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                   <div
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      usePersonalization ? "border-emerald-200 bg-emerald-50" : "border-gray-200 bg-gray-50"
-                    }`}
+                    className={`p-3 rounded-lg transition-all`}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Brain className="h-4 w-4 text-emerald-600" />
@@ -273,9 +289,7 @@ export function PlaylistGenerator() {
                   </div>
 
                   <div
-                    className={`p-3 rounded-lg border-2 transition-all ${
-                      !usePersonalization ? "border-blue-200 bg-blue-50" : "border-gray-200 bg-gray-50"
-                    }`}
+                    className={`p-3 rounded-lg transition-all`}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <Zap className="h-4 w-4 text-blue-600" />
@@ -295,7 +309,7 @@ export function PlaylistGenerator() {
             {/* Playlist Generator */}
             <div className="bg-card rounded-xl shadow-lg p-6 border">
               {isGenerating && (
-                <div className="mb-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                <div className="mb-6 p-4 rounded-lg border border-emerald-200">
                   <div className="flex items-center gap-2 mb-2">
                     {usePersonalization ? (
                       <Brain className="h-5 w-5 text-emerald-600 animate-pulse" />
@@ -346,7 +360,7 @@ export function PlaylistGenerator() {
                 <Button
                   onClick={generatePlaylist}
                   disabled={keywords.length === 0 || isGenerating}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="w-full whitespace-break-spaces bg-emerald-600 hover:bg-emerald-700 text-white"
                   size="lg"
                 >
                   {isGenerating ? (
