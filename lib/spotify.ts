@@ -98,13 +98,15 @@ export async function getUserPlaylists(accessToken: string) {
   return response.json()
 }
 
-// Neue Funktionen für Hörgewohnheiten
+// Verbesserte Funktionen für Hörgewohnheiten mit besserer Fehlerbehandlung
 
 export async function getTopArtists(
   accessToken: string,
   timeRange: "short_term" | "medium_term" | "long_term" = "medium_term",
   limit = 50,
 ) {
+  console.log(`🎤 Lade Top-Künstler (${timeRange}, limit: ${limit})...`)
+
   const response = await fetch(`https://api.spotify.com/v1/me/top/artists?time_range=${timeRange}&limit=${limit}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -112,10 +114,14 @@ export async function getTopArtists(
   })
 
   if (!response.ok) {
-    throw new Error("Top-Künstler konnten nicht abgerufen werden")
+    const errorText = await response.text()
+    console.error(`Top-Künstler API Fehler (${timeRange}):`, response.status, errorText)
+    throw new Error(`Top-Künstler konnten nicht abgerufen werden: ${response.status}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log(`✅ ${data.items?.length || 0} Top-Künstler (${timeRange}) geladen`)
+  return data
 }
 
 export async function getTopTracks(
@@ -123,6 +129,8 @@ export async function getTopTracks(
   timeRange: "short_term" | "medium_term" | "long_term" = "medium_term",
   limit = 50,
 ) {
+  console.log(`🎵 Lade Top-Tracks (${timeRange}, limit: ${limit})...`)
+
   const response = await fetch(`https://api.spotify.com/v1/me/top/tracks?time_range=${timeRange}&limit=${limit}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -130,13 +138,19 @@ export async function getTopTracks(
   })
 
   if (!response.ok) {
-    throw new Error("Top-Tracks konnten nicht abgerufen werden")
+    const errorText = await response.text()
+    console.error(`Top-Tracks API Fehler (${timeRange}):`, response.status, errorText)
+    throw new Error(`Top-Tracks konnten nicht abgerufen werden: ${response.status}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log(`✅ ${data.items?.length || 0} Top-Tracks (${timeRange}) geladen`)
+  return data
 }
 
 export async function getRecentlyPlayed(accessToken: string, limit = 50) {
+  console.log(`🕒 Lade kürzlich gespielte Tracks (limit: ${limit})...`)
+
   const response = await fetch(`https://api.spotify.com/v1/me/player/recently-played?limit=${limit}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -144,10 +158,14 @@ export async function getRecentlyPlayed(accessToken: string, limit = 50) {
   })
 
   if (!response.ok) {
-    throw new Error("Kürzlich gespielte Tracks konnten nicht abgerufen werden")
+    const errorText = await response.text()
+    console.error("Recently Played API Fehler:", response.status, errorText)
+    throw new Error(`Kürzlich gespielte Tracks konnten nicht abgerufen werden: ${response.status}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log(`✅ ${data.items?.length || 0} kürzlich gespielte Tracks geladen`)
+  return data
 }
 
 export async function getAudioFeatures(accessToken: string, trackIds: string[]) {
@@ -164,37 +182,55 @@ export async function getAudioFeatures(accessToken: string, trackIds: string[]) 
     return { audio_features: [] }
   }
 
-  const ids = validTrackIds.join(",")
+  console.log(`🎼 Lade Audio-Features für ${validTrackIds.length} Tracks...`)
 
   try {
-    // Versuche zuerst, die Audio-Features für alle Tracks auf einmal zu holen
-    const response = await fetch(`https://api.spotify.com/v1/audio-features?ids=${ids}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    // Verarbeite in Batches von 50 (sicherer für API)
+    const batchSize = 50
+    const allAudioFeatures = []
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`Audio-Features API Fehler (${response.status}):`, errorText)
+    for (let i = 0; i < validTrackIds.length; i += batchSize) {
+      const batch = validTrackIds.slice(i, i + batchSize)
+      const ids = batch.join(",")
 
-      // Bei 403 oder 429 Fehlern: Versuche einzelne Tracks
-      if (response.status === 403 || response.status === 429) {
-        console.log("Versuche Audio-Features für einzelne Tracks zu laden...")
-        return await getAudioFeaturesIndividually(accessToken, validTrackIds)
+      const response = await fetch(`https://api.spotify.com/v1/audio-features?ids=${ids}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error(`Audio-Features API Fehler (Batch ${i / batchSize + 1}):`, response.status, errorText)
+
+        // Bei 403 oder 429 Fehlern: Versuche einzelne Tracks
+        if (response.status === 403 || response.status === 429) {
+          console.log("Versuche Audio-Features für einzelne Tracks zu laden...")
+          const individualFeatures = await getAudioFeaturesIndividually(accessToken, batch)
+          allAudioFeatures.push(...individualFeatures)
+          continue
+        }
+
+        // Bei anderen Fehlern: Überspringe diesen Batch
+        console.warn(`Überspringe Batch ${i / batchSize + 1} wegen Fehler ${response.status}`)
+        continue
       }
 
-      // Fallback: Leere Audio-Features zurückgeben
-      return { audio_features: [] }
+      const data = await response.json()
+      if (data.audio_features) {
+        allAudioFeatures.push(...data.audio_features.filter((f: any) => f !== null))
+      }
+
+      // Kurze Pause zwischen Batches
+      if (i + batchSize < validTrackIds.length) {
+        await new Promise((resolve) => setTimeout(resolve, 200))
+      }
     }
 
-    const data = await response.json()
-    console.log(`Audio-Features für ${validTrackIds.length} Tracks abgerufen`)
-
-    return data
+    console.log(`✅ ${allAudioFeatures.length} Audio-Features erfolgreich geladen`)
+    return { audio_features: allAudioFeatures }
   } catch (error) {
     console.error("Netzwerkfehler beim Abrufen der Audio-Features:", error)
-    // Fallback: Leere Audio-Features zurückgeben
     return { audio_features: [] }
   }
 }
@@ -204,44 +240,38 @@ async function getAudioFeaturesIndividually(accessToken: string, trackIds: strin
   console.log(`Versuche Audio-Features für ${trackIds.length} einzelne Tracks zu laden...`)
 
   const audioFeatures = []
-  const batchSize = 5 // Kleinere Batches, um Rate Limiting zu vermeiden
 
-  // Verarbeite Tracks in kleinen Batches
-  for (let i = 0; i < trackIds.length; i += batchSize) {
-    const batch = trackIds.slice(i, i + batchSize)
+  for (const trackId of trackIds) {
+    try {
+      const response = await fetch(`https://api.spotify.com/v1/audio-features/${trackId}`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
 
-    // Warte kurz zwischen den Batches, um Rate Limiting zu vermeiden
-    if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 500))
-    }
-
-    const batchPromises = batch.map(async (trackId) => {
-      try {
-        const response = await fetch(`https://api.spotify.com/v1/audio-features/${trackId}`, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        })
-
-        if (response.ok) {
-          return await response.json()
+      if (response.ok) {
+        const feature = await response.json()
+        if (feature && feature.id) {
+          audioFeatures.push(feature)
         }
-        return null
-      } catch (error) {
-        console.warn(`Fehler beim Laden der Audio-Features für Track ${trackId}:`, error)
-        return null
+      } else {
+        console.warn(`Audio-Features für Track ${trackId} nicht verfügbar: ${response.status}`)
       }
-    })
 
-    const batchResults = await Promise.all(batchPromises)
-    audioFeatures.push(...batchResults.filter(Boolean))
+      // Kurze Pause zwischen Anfragen
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    } catch (error) {
+      console.warn(`Fehler beim Laden der Audio-Features für Track ${trackId}:`, error)
+    }
   }
 
   console.log(`${audioFeatures.length} von ${trackIds.length} Audio-Features einzeln geladen`)
-  return { audio_features: audioFeatures }
+  return audioFeatures
 }
 
 export async function getSavedTracks(accessToken: string, limit = 50) {
+  console.log(`💾 Lade gespeicherte Tracks (limit: ${limit})...`)
+
   const response = await fetch(`https://api.spotify.com/v1/me/tracks?limit=${limit}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -249,13 +279,19 @@ export async function getSavedTracks(accessToken: string, limit = 50) {
   })
 
   if (!response.ok) {
-    throw new Error("Gespeicherte Tracks konnten nicht abgerufen werden")
+    const errorText = await response.text()
+    console.error("Saved Tracks API Fehler:", response.status, errorText)
+    throw new Error(`Gespeicherte Tracks konnten nicht abgerufen werden: ${response.status}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log(`✅ ${data.items?.length || 0} gespeicherte Tracks geladen`)
+  return data
 }
 
 export async function getFollowedArtists(accessToken: string, limit = 50) {
+  console.log(`👥 Lade gefolgte Künstler (limit: ${limit})...`)
+
   const response = await fetch(`https://api.spotify.com/v1/me/following?type=artist&limit=${limit}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -263,10 +299,14 @@ export async function getFollowedArtists(accessToken: string, limit = 50) {
   })
 
   if (!response.ok) {
-    throw new Error("Gefolgte Künstler konnten nicht abgerufen werden")
+    const errorText = await response.text()
+    console.error("Followed Artists API Fehler:", response.status, errorText)
+    throw new Error(`Gefolgte Künstler konnten nicht abgerufen werden: ${response.status}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  console.log(`✅ ${data.artists?.items?.length || 0} gefolgte Künstler geladen`)
+  return data
 }
 
 // Neue Funktion zum Testen der API-Berechtigungen
