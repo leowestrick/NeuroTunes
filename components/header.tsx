@@ -25,7 +25,7 @@ export function Header() {
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-2">
           <Link href="/" className="flex items-center gap-2">
-            <Music className="h-6 w-6 text-emerald-600" />
+            <img src="/MetaIcon.png" className="h-6 w-6" alt="NeuroTunes Icon" />
             <span className="text-xl font-bold">NeuroTunes</span>
           </Link>
 
