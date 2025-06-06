@@ -47,7 +47,7 @@ export function TopArtistsCard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
+            <Users className="h-5 w-5 text-emerald-600" />
             Deine Top-Künstler
           </CardTitle>
           <CardDescription>Deine meistgehörten Künstler</CardDescription>
@@ -75,7 +75,7 @@ export function TopArtistsCard() {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
+              <Users className="h-5 w-5 text-emerald-600" />
               Deine Top-Künstler
             </CardTitle>
             <CardDescription>Deine meistgehörten Künstler</CardDescription>

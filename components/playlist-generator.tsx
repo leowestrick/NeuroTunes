@@ -117,12 +117,15 @@ export function PlaylistGenerator() {
       const data = await response.json()
 
       if (!response.ok) {
+        // Spezielle Behandlung für Authentifizierungsfehler
         if (response.status === 401) {
           toast({
             title: "Session abgelaufen",
             description: "Deine Spotify-Session ist abgelaufen. Bitte melde dich erneut an.",
             variant: "destructive",
           })
+          // Optional: Automatische Weiterleitung zum Login
+          // signOut({ callbackUrl: "/" })
           return
         }
 
@@ -150,6 +153,7 @@ export function PlaylistGenerator() {
         description: `${data.playlist.trackCount} Songs wurden zu deiner Playlist hinzugefügt${personalityInfo}.`,
       })
 
+      // Kurze Pause vor der Weiterleitung
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       router.push(`/playlist/${data.playlist.id}`)
@@ -213,15 +217,16 @@ export function PlaylistGenerator() {
           </Card>
         ) : (
           <div className="space-y-6">
-            {/* Personalisierungs-Option */}
-            <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
+            {/* Persönlichkeits-Info Card */}
+            <Card className="bg-[rgb(28,25,23)] ">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-emerald-800">
-                  <User className="h-5 w-5" />
-                  Playlist-Modus
+                <CardTitle className="flex items-center gap-2 ">
+                  <User className="h-5 w-5 text-emerald-600" />
+                  Personalisierte KI-Analyse
                 </CardTitle>
-                <CardDescription className="text-emerald-700">
-                  Wähle zwischen personalisierter KI-Analyse oder Standard-Generierung
+                <CardDescription className="text-[rgb(161,161,170)]">
+                  NeuroTunes analysiert deine Spotify-Hörgewohnheiten, um eine einzigartige Musikpersönlichkeit zu
+                  erstellen und perfekt passende Playlists zu generieren.
                 </CardDescription>
               </CardHeader>
               <CardContent>

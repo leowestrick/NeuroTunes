@@ -38,7 +38,7 @@ export function ListeningHistoryCard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
+            <Clock className="h-5 w-5 text-emerald-600" />
             Kürzlich gehört
           </CardTitle>
           <CardDescription>Deine letzten gespielten Songs</CardDescription>
@@ -65,7 +65,7 @@ export function ListeningHistoryCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Clock className="h-5 w-5" />
+          <Clock className="h-5 w-5 text-emerald-600" />
           Kürzlich gehört
         </CardTitle>
         <CardDescription>Deine letzten gespielten Songs</CardDescription>
