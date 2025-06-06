@@ -202,13 +202,13 @@ export function PlaylistGenerator() {
         ) : (
           <div className="space-y-6">
             {/* Persönlichkeits-Info Card */}
-            <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
+            <Card className="bg-[rgb(28,25,23)] ">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-emerald-800">
-                  <User className="h-5 w-5" />
+                <CardTitle className="flex items-center gap-2 ">
+                  <User className="h-5 w-5 text-emerald-600" />
                   Personalisierte KI-Analyse
                 </CardTitle>
-                <CardDescription className="text-emerald-700">
+                <CardDescription className="text-[rgb(161,161,170)]">
                   NeuroTunes analysiert deine Spotify-Hörgewohnheiten, um eine einzigartige Musikpersönlichkeit zu
                   erstellen und perfekt passende Playlists zu generieren.
                 </CardDescription>
@@ -217,15 +217,15 @@ export function PlaylistGenerator() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4 text-emerald-600" />
-                    <span className="text-emerald-800">Top-Genres & Künstler</span>
+                    <span>Top-Genres & Künstler</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Brain className="h-4 w-4 text-emerald-600" />
-                    <span className="text-emerald-800">Audio-Feature-Analyse</span>
+                    <span>Audio-Feature-Analyse</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-emerald-600" />
-                    <span className="text-emerald-800">Stimmungsprofil</span>
+                    <span>Stimmungsprofil</span>
                   </div>
                 </div>
               </CardContent>
