@@ -22,6 +22,10 @@ export function MusicPersonalityCard() {
     }
   }, [accessToken])
 
+  useEffect(() => {
+    console.log('Personality: ', personality);
+  }, [personality]);
+
   const analyzePersonality = async () => {
     if (!accessToken) return
 
