@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
       try {
         console.log("Testing Google AI API...")
 
-        const model = google("gemini-1.5-flash", {
+        const model = google("gemini-2.5-flash-lite", {
           apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
         })
 

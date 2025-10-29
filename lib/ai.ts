@@ -48,18 +48,19 @@ export async function generatePlaylist(keywords: string[], accessToken: string, 
     let songSuggestions
     try {
       // Explizit den API-Schlüssel übergeben
-      const model = google("gemini-1.5-flash", {
+      const model = google("gemini-2.5-flash-lite", {
         apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
       })
 
-      const { text } = await generateText({
+      const response = await generateText({
         model,
         prompt,
         temperature: usePersonalization && personality ? 0.6 : 0.7,
         maxTokens: 1000,
       })
 
-      console.log("Gemini Antwort erhalten")
+      const {text} = response;
+      console.log("Gemini Antwort erhalten: ", response)
       songSuggestions = parseGeminiResponse(text)
     } catch (aiError) {
       console.error("KI-Generierung fehlgeschlagen:", aiError)
